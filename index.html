@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>灰都政府 · 内部终端 07-A</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     启动页
+     ═══════════════════════════════════════════ -->
+<div class="boot" id="boot">
+  <div class="boot-grid"></div>
+  <div class="boot-inner">
+
+    <svg class="boot-mark" viewBox="0 0 48 48" width="46" height="46" aria-hidden="true">
+      <circle cx="24" cy="24" r="20.5" fill="none" stroke="currentColor" stroke-width=".7" opacity=".3"/>
+      <circle cx="24" cy="24" r="13"   fill="none" stroke="currentColor" stroke-width=".8" opacity=".5"/>
+      <path d="M24 4.5 L41.5 33 L6.5 33 Z"    fill="none" stroke="currentColor" stroke-width="1"/>
+      <path d="M24 43.5 L6.5 15 L41.5 15 Z"   fill="none" stroke="currentColor" stroke-width=".6" opacity=".28"/>
+      <line x1="24" y1="4.5" x2="24" y2="43.5" stroke="currentColor" stroke-width=".5" opacity=".28"/>
+    </svg>
+
+    <div class="boot-org">灰都政府 · 内部终端</div>
+    <div class="boot-sub">RESTRICTED TERMINAL · 07-A · TIER III</div>
+
+    <!-- 启动提示：由 app.js 显示 -->
+    <div class="boot-prompt" id="bootprompt" hidden>
+      按任意处继续<span class="caret"></span>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     主应用
+     ═══════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- ── 顶栏 ── -->
+  <header class="bar bar-t">
+
+    <div class="bar-l">
+      <svg class="mark" viewBox="0 0 32 32" width="24" height="24" aria-hidden="true">
+        <circle cx="16" cy="16" r="13.5" fill="none" stroke="currentColor" stroke-width=".7" opacity=".35"/>
+        <circle cx="16" cy="16" r="8.5"  fill="none" stroke="currentColor" stroke-width=".8" opacity=".55"/>
+        <path d="M16 3.5 L27.5 22.5 L4.5 22.5 Z" fill="none" stroke="currentColor" stroke-width=".9"/>
+        <line x1="16" y1="3.5" x2="16" y2="28.5"  stroke="currentColor" stroke-width=".5" opacity=".3"/>
+      </svg>
+      <div class="org">
+        <span class="org-cn">灰都政府 · 内部终端</span>
+        <span class="org-en">GREYSTAR INTERNAL TERMINAL · 07-A</span>
+      </div>
+    </div>
+
+    <div class="bar-c">
+      <span class="tag">终端 07-A</span>
+      <span class="tag tag-warn">限制级 · TIER III</span>
+    </div>
+
+  </header>
+
+  <!-- ── 主区：左导航 + 阅读区 ── -->
+  <main class="main">
+
+    <!-- 导航 -->
+    <nav class="nav">
+      <div class="nav-hd">
+        <span>模块索引</span>
+        <b>/ INDEX</b>
+      </div>
+
+      <!-- 导航列表：由 app.js 填入 -->
+      <div class="nav-list" id="navlist"></div>
+    </nav>
+
+    <!-- 舞台：由 app.js 挂载当前模块 -->
+    <section class="stage" id="stage"></section>
+
+  </main>
+
+</div>
+
+<!-- ═══════════════════════════════════════════
+     术语提示框（全局单例）
+     ═══════════════════════════════════════════ -->
+<div class="tip" id="tip">
+  <span class="tip-k"></span>
+  <span class="tip-b"></span>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     脚本
+     ═══════════════════════════════════════════ -->
+<script src="data.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
