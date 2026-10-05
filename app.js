@@ -415,8 +415,45 @@ function renderDoc(doc) {
 }
 
 /* ─────────── 启动 ─────────── */
+/* ─────────── 移动端抽屉 ─────────── */
+function initMobileNav() {
+  const toggle = $('#menuToggle');
+  const nav    = $('.nav');
+  const mask   = $('#navMask');
+  if (!toggle || !nav || !mask) return;
+
+  function open(){
+    nav.classList.add('open');
+    mask.classList.add('on');
+  }
+  function close(){
+    nav.classList.remove('open');
+    mask.classList.remove('on');
+  }
+
+  toggle.addEventListener('click', () => {
+    nav.classList.contains('open') ? close() : open();
+  });
+  mask.addEventListener('click', close);
+
+  /* 点击侧栏任意条目后，自动关闭抽屉（仅手机端） */
+  nav.addEventListener('click', e => {
+    if (e.target.closest('.side-item, .side-sub-item')) {
+      if (window.matchMedia('(max-width: 768px)').matches) {
+        setTimeout(close, 180);
+      }
+    }
+  });
+
+  /* 手机端旋转到横屏/变宽时，自动关掉抽屉 */
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) close();
+  });
+}
+
 function start() {
   initTip();
+  initMobileNav();
   buildNav();
   for (const group of NAV) {
     if (group.items && group.items.length) {
