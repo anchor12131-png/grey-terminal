@@ -1,0 +1,40 @@
+/* Global document search */
+.global-search{position:relative;flex:1;min-width:110px;max-width:380px}
+.global-search input{display:block;width:100%;height:30px;padding:0 10px;
+  background:var(--bg);border:1px solid var(--line2);border-radius:0;
+  color:var(--ink);font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  outline:none;transition:border-color .18s}
+.global-search input:focus{border-color:rgba(121,180,198,.6)}
+.global-search input::placeholder{color:var(--ink3)}
+.search-results{position:absolute;top:calc(100% + 7px);right:0;width:min(460px,calc(100vw - 24px));
+  max-height:min(65vh,480px);overflow-y:auto;z-index:110;
+  border:1px solid var(--line2);background:#0b0e11;
+  box-shadow:0 12px 32px rgba(0,0,0,.65)}
+.search-results[hidden]{display:none}
+.search-result{display:block;width:100%;padding:10px 12px;text-align:left;
+  border:0;border-bottom:1px solid var(--line);background:transparent;
+  color:var(--ink);font:inherit;cursor:pointer}
+.search-result:last-child{border-bottom:0}
+.search-result:hover,.search-result:focus{background:rgba(121,180,198,.08);outline:none}
+.search-result-title{display:flex;justify-content:space-between;gap:12px;
+  color:var(--acc);font-size:10px;letter-spacing:.08em}
+.search-result-loc{flex:none;color:var(--ink3);font-family:var(--mono);font-size:8px}
+.search-result-context{display:block;margin-top:5px;color:var(--ink2);
+  font-size:11px;line-height:1.6;letter-spacing:.02em}
+.search-result-context mark,.search-match{background:rgba(194,160,106,.28);
+  color:#f1d295;border-bottom:1px solid var(--warn)}
+.search-empty{padding:12px;color:var(--ink3);font-size:10px}
+
+@media (max-width: 768px){
+  .global-search{min-width:100px;max-width:240px}
+  .global-search input{height:32px;font-size:9px;padding:0 8px}
+}
+
+@media (max-width: 380px){
+  .bar-l{flex:none}
+  .bar-l .org{display:none}
+  .global-search{flex:1;min-width:0;max-width:none}
+  .search-results{width:min(460px,calc(100vw - 20px));max-height:60vh}
+  .search-result{padding:12px}
+  .search-result-context{font-size:12px;line-height:1.55}
+}

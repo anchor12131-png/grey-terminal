@@ -58,6 +58,11 @@ const NAV = [
   },
   {
     group: '表格，创造属于你自己的设定',
-    items: []
+    items: [
+      { id:'character_template', title:'基础设定表格' },
+      { id:'sawian_guide', title:'萨维恩人指南(必读)' },
+      { id:'faq', title:'Q&A（常见问题答疑）' }
+    ],
+    subheadings: ['基因图谱详解1.0']
   }
 ];

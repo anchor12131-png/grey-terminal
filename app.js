@@ -166,15 +166,15 @@ function buildNav() {
     g.textContent = group.group;
     list.appendChild(g);
 
-    if (!group.items || group.items.length === 0) {
+    const items = group.items || [];
+    if (!items.length && !(group.subheadings && group.subheadings.length)) {
       const empty = document.createElement('div');
       empty.className = 'side-empty';
       empty.textContent = '（暂无条目）';
       list.appendChild(empty);
-      return;
     }
 
-    group.items.forEach(item => {
+    items.forEach(item => {
       const d = document.createElement('div');
       d.className = 'side-item';
       d.dataset.id = item.id;
@@ -196,6 +196,13 @@ function buildNav() {
         renderSubItems(subWrap, item.sub, 1);
         list.appendChild(subWrap);
       }
+    });
+
+    (group.subheadings || []).forEach(title => {
+      const heading = document.createElement('div');
+      heading.className = 'side-static-subheading';
+      heading.textContent = title;
+      list.appendChild(heading);
     });
   });
 }
@@ -289,6 +296,8 @@ function showDoc(id) {
   if (!topId) return;
   const doc = DOCS[topId];
   if (!doc) return;
+  const app = $('#app');
+  if (app) app.classList.remove('directory-home');
 
   const switching = currentId !== topId;
 
@@ -455,12 +464,20 @@ function start() {
   initTip();
   initMobileNav();
   buildNav();
-  for (const group of NAV) {
-    if (group.items && group.items.length) {
-      showDoc(group.items[0].id);
-      break;
+  initGlobalSearch({
+    getDocuments: () => NAV.reduce((documents, group) => {
+      (group.items || []).forEach(item => {
+        const doc = DOCS[item.id];
+        if (doc) documents.push({ id:item.id, title:doc.title, html:renderDoc(doc) });
+      });
+      return documents;
+    }, []),
+    openDocument: id => {
+      showDoc(id);
+      return $('.mod', $('#stage'));
     }
-  }
+  });
+  initDirectory({ groups:NAV, openDocument:showDoc });
 }
 
 runBoot();
