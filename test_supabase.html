@@ -1,0 +1,93 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Supabase 连接测试</title>
+<style>
+  body { background: #0a0c0f; color: #c6ccd2; font-family: sans-serif; padding: 40px; }
+  input { background: #07080a; color: #fff; border: 1px solid #575e65; padding: 10px; width: 300px; }
+  button { background: #79b4c6; color: #000; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
+  button:hover { background: #9ed3e0; }
+  #list { margin-top: 20px; border-top: 1px solid #333; padding-top: 20px; }
+  .item { padding: 8px; border-bottom: 1px dashed #333; }
+</style>
+</head>
+<body>
+
+  <h2>灰星内部系统 · 连线测试</h2>
+
+  <div>
+    <input type="text" id="msgInput" placeholder="输入测试文字……">
+    <button id="submitBtn">发送到云端数据库</button>
+  </div>
+
+  <div id="list">
+    <h3>从云端拉取的数据：</h3>
+    <div id="dataContainer">加载中……</div>
+  </div>
+
+  <!-- 引入 Supabase 的 JS 库 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    const SUPABASE_URL = 'https://ehuarcyhoczfrtfkshkc.supabase.co'; 
+    const SUPABASE_KEY = 'sb_publishable_51oZG6OnBjFvsonkWHMNHw_MCspzAlK';
+
+    // ⚠️ 这里改名叫 supabaseClient 避免冲突
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const input = document.getElementById('msgInput');
+    const btn = document.getElementById('submitBtn');
+    const container = document.getElementById('dataContainer');
+
+    // 从数据库读取数据
+    async function loadData() {
+      const { data, error } = await supabaseClient
+        .from('test_messages')
+        .select('*')
+        .order('id', { ascending: false });
+
+      if (error) {
+        container.innerHTML = '<p style="color:red">读取失败：' + error.message + '</p>';
+        return;
+      }
+
+      if (data.length === 0) {
+        container.innerHTML = '<p style="color:#666">数据库里还没有数据。</p>';
+        return;
+      }
+
+      container.innerHTML = data.map(item => 
+        `<div class="item">ID: ${item.id} | 内容: <b>${item.content}</b></div>`
+      ).join('');
+    }
+
+    // 往数据库写入数据
+    btn.addEventListener('click', async () => {
+      const text = input.value.trim();
+      if (!text) return alert('写点什么再发！');
+
+      btn.disabled = true;
+      btn.textContent = '发送中……';
+
+      // 插入数据
+      const { error } = await supabaseClient
+        .from('test_messages')
+        .insert([{ content: text }]);
+
+      if (error) {
+        alert('写入失败：' + error.message);
+      } else {
+        input.value = '';
+        await loadData(); // 重新读取
+      }
+
+      btn.disabled = false;
+      btn.textContent = '发送到云端数据库';
+    });
+
+    // 页面打开时先读一次
+    loadData();
+  </script>
+</body>
+</html>
