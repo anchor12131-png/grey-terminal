@@ -198,10 +198,12 @@ function buildNav() {
       }
     });
 
-    (group.subheadings || []).forEach(title => {
+    (group.subheadings || []).forEach(entry => {
       const heading = document.createElement('div');
       heading.className = 'side-static-subheading';
-      heading.textContent = title;
+      heading.textContent = typeof entry === 'string'
+        ? entry
+        : (entry && (entry.title || entry.text || entry.href || entry.url)) || '';
       list.appendChild(heading);
     });
   });

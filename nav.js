@@ -61,8 +61,9 @@ const NAV = [
     items: [
       { id:'character_template', title:'基础设定表格' },
       { id:'sawian_guide', title:'萨维恩人指南(必读)' },
-      { id:'faq', title:'Q&A（常见问题答疑）' }
-    ],
-    subheadings: ['基因图谱详解1.0']
+      { id:'faq', title:'Q&A（常见问题答疑）' },
+      { id:'gene_atlas', title:'基因图谱详解1.0' }
+    ]
+
   }
 ];
