@@ -120,7 +120,10 @@
           }
           return updated;
         }
-        throw new Error('用户名已存在，请更换一个用户名。');
+        if (/username/i.test(detail)) {
+          throw new Error('用户名已存在，请更换一个用户名。');
+        }
+        throw new Error('用户资料发生唯一键冲突：' + (error.message || '请检查 users 表中的 id、auth_user_id 和 username。'));
       }
       throw new Error('创建用户资料失败：' + error.message);
     }
@@ -178,7 +181,8 @@
       role: role,
       isAdmin: role === 'admin',
       authenticated: true,
-      roleError: profileError ? profileError.message : ''
+      roleError: profileError ? profileError.message : '',
+      profileMissing: !profileError && !profile
     };
     return currentIdentity;
   }
@@ -523,12 +527,16 @@
       if (!data || !data.user) throw new Error('登录失败：Supabase 未返回用户。');
 
       await requireAuthenticatedSession(data.user.id, false);
-      const profile = await getUserProfile(data.user);
-      if (!profile) await persistProfile(data.user, username);
       const identity = await refreshIdentity(data.user);
       renderMeta();
       dispatchIdentityEvent('greyauth:changed');
-      setMsg(msg, identity.isAdmin ? '管理员身份接入成功。' : '登录成功。', 'ok');
+      if (identity.roleError) {
+        setMsg(msg, '账号已登录，但读取用户角色失败；为安全起见暂按普通玩家处理。' + identity.roleError, 'warn');
+      } else if (identity.profileMissing) {
+        setMsg(msg, '账号已登录，但 users 表中没有对应资料；当前按普通玩家权限显示。', 'warn');
+      } else {
+        setMsg(msg, identity.isAdmin ? '管理员身份接入成功。' : '登录成功。', 'ok');
+      }
       setTimeout(closeModal, 800);
     } catch (error) {
       console.error('[GreyAuth] Login flow failed:', error);
