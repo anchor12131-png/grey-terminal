@@ -7,14 +7,13 @@
 
   const INTERNAL_EMAIL_DOMAIN = 'greystar.internal';
   const LEGACY_EMAIL_DOMAIN = 'accounts.grey-terminal.invalid';
-  const LEGACY_STORAGE_KEYS = ['grey_user', 'grey_guest_id', 'current_user_is_admin'];
   const $ = (selector, root) => (root || document).querySelector(selector);
   let modalEl = null;
   let lastFocusEl = null;
   let currentIdentity = {
-    type: 'guest',
+    type: 'signed-out',
     ownerId: null,
-    label: '游客（未接入）',
+    label: '未登录',
     user: null,
     isAdmin: false,
     authenticated: false
@@ -44,7 +43,8 @@
       if (error.name === 'AuthSessionMissingError' || error.code === 'session_not_found') return null;
       throw new Error('读取登录会话失败：' + error.message);
     }
-    return data && data.user ? data.user : null;
+    const user = data && data.user;
+    return user && user.email ? user : null;
   }
 
   async function usernameToEmail(username) {
@@ -63,17 +63,12 @@
     return 'u' + hex.slice(0, 40) + '@' + LEGACY_EMAIL_DOMAIN;
   }
 
-  async function requireAuthenticatedSession(expectedUserId, allowAnonymous) {
+  async function requireAuthenticatedSession(expectedUserId) {
     const { data, error } = await getSupabase().auth.getSession();
     if (error) throw new Error('确认登录会话失败：' + error.message);
     const sessionUser = data && data.session && data.session.user;
-    if (!sessionUser || sessionUser.id !== expectedUserId) {
-      throw new Error('认证会话尚未建立，请稍后重试。');
-    }
-    const isAnonymous = !!(sessionUser.is_anonymous ||
-      (sessionUser.app_metadata && sessionUser.app_metadata.provider === 'anonymous'));
-    if (isAnonymous && !allowAnonymous) {
-      throw new Error('当前仍是游客会话，暂不能访问账号资料。');
+    if (!sessionUser || sessionUser.id !== expectedUserId || !sessionUser.email) {
+      throw new Error('请先登录后再继续。');
     }
     return sessionUser;
   }
@@ -92,7 +87,7 @@
   }
 
   async function persistProfile(authUser, username) {
-    await requireAuthenticatedSession(authUser.id, false);
+    await requireAuthenticatedSession(authUser.id);
     const { data, error } = await getSupabase()
       .from('users')
       .insert([{
@@ -131,30 +126,17 @@
   }
 
   async function hydrateIdentity(authUser, revision) {
-    const user = authUser || await getAuthenticatedUser();
+    const candidate = authUser || await getAuthenticatedUser();
+    const user = candidate && candidate.email ? candidate : null;
     if (revision !== identityRevision) return currentIdentity;
     if (!user) {
       currentIdentity = {
-        type: 'guest',
+        type: 'signed-out',
         ownerId: null,
-        label: '游客（未接入）',
+        label: '未登录',
         user: null,
         isAdmin: false,
         authenticated: false
-      };
-      return currentIdentity;
-    }
-
-    const anonymous = !!(user.is_anonymous || (user.app_metadata && user.app_metadata.provider === 'anonymous'));
-    if (anonymous) {
-      currentIdentity = {
-        type: 'guest',
-        ownerId: String(user.id),
-        label: '游客',
-        user: user,
-        role: 'player',
-        isAdmin: false,
-        authenticated: true
       };
       return currentIdentity;
     }
@@ -200,7 +182,7 @@
     button.innerHTML = [
       '<span class="auth-dot" aria-hidden="true"></span>',
       '<span class="auth-label">当前身份</span>',
-      '<span class="auth-value" id="authStatusValue">游客</span>'
+      '<span class="auth-value" id="authStatusValue">未登录</span>'
     ].join('');
     button.addEventListener('click', openModal);
     header.appendChild(button);
@@ -243,7 +225,7 @@
       button.classList.toggle('is-admin', currentIdentity.isAdmin);
       button.title = currentIdentity.type === 'user'
         ? '当前身份：' + (currentIdentity.isAdmin ? '管理员 - ' : '玩家 - ') + currentIdentity.label
-        : currentIdentity.authenticated ? '当前身份：游客' : '点击接入游客或账号';
+        : '点击登录或注册';
       button.setAttribute('aria-label', button.title);
     }
   }
@@ -271,7 +253,6 @@
       +     '<input class="auth-input" id="authLoginUsername" autocomplete="username" maxlength="32" placeholder="输入账号名" /></div>'
       +     '<div class="auth-field"><label for="authLoginPassword">密码</label>'
       +     '<input class="auth-input" id="authLoginPassword" type="password" autocomplete="current-password" maxlength="64" placeholder="输入密码" /></div>'
-      +     '<p class="auth-hint">游客稿件可通过注册升级当前匿名身份；登录已有账号不会自动迁移其他匿名会话的数据。</p>'
       +     '<div class="auth-msg" id="authLoginMsg" aria-live="polite"></div>'
       +     '<div class="auth-actions"><button type="submit" class="auth-submit">接入账号</button></div>'
       +   '</form>'
@@ -286,10 +267,6 @@
       +     '<div class="auth-msg" id="authRegisterMsg" aria-live="polite"></div>'
       +     '<div class="auth-actions"><button type="submit" class="auth-submit">建立身份</button></div>'
       +   '</form>'
-      +   '<div class="auth-guest-access">'
-      +     '<span class="auth-guest-label">或</span>'
-      +     '<button type="button" class="auth-secondary" id="authGuestBtn">游客访问</button>'
-      +   '</div>'
       +   '<div class="auth-meta" id="authMeta"></div>'
       + '</div>';
     document.body.appendChild(modalEl);
@@ -299,7 +276,6 @@
     $('#authModalClose', modalEl).addEventListener('click', closeModal);
     $('#authTabLogin', modalEl).addEventListener('click', () => switchTab('login'));
     $('#authTabRegister', modalEl).addEventListener('click', () => switchTab('register'));
-    $('#authGuestBtn', modalEl).addEventListener('click', onGuestAccess);
     $('#authPanelLogin', modalEl).addEventListener('submit', onLoginSubmit);
     $('#authPanelRegister', modalEl).addEventListener('submit', onRegisterSubmit);
     document.addEventListener('keydown', event => {
@@ -350,9 +326,24 @@
 
   function closeModal() {
     if (!modalEl) return;
+    if (!currentIdentity.authenticated || currentIdentity.type !== 'user') return;
     modalEl.hidden = true;
     document.body.style.overflow = '';
     if (lastFocusEl && typeof lastFocusEl.focus === 'function') lastFocusEl.focus();
+  }
+
+  function applyAuthGate() {
+    const allowed = currentIdentity.authenticated && currentIdentity.type === 'user';
+    const app = $('#app');
+    const boot = $('#boot');
+    const closeButton = $('#authModalClose');
+    if (app) app.classList.toggle('auth-locked', !allowed);
+    if (boot) boot.hidden = !allowed;
+    if (closeButton) closeButton.hidden = !allowed;
+    document.querySelectorAll('[data-auth-protected]').forEach(element => {
+      if (element !== app) element.hidden = !allowed;
+    });
+    if (!allowed) openModal();
   }
 
   function renderMeta() {
@@ -365,12 +356,8 @@
           + ' · ' + (currentIdentity.isAdmin ? '管理员' : '玩家') + '<br>')
         + '<button type="button" class="auth-secondary" id="authLogoutBtn" style="margin-top:10px">退出当前账号</button>';
       $('#authLogoutBtn', meta).addEventListener('click', onLogout);
-    } else if (currentIdentity.authenticated) {
-      meta.innerHTML = '<strong>游客模式：</strong>Supabase 匿名会话已接入。'
-        + '<br><button type="button" class="auth-secondary" id="authLogoutBtn" style="margin-top:10px">结束游客会话</button>';
-      $('#authLogoutBtn', meta).addEventListener('click', onLogout);
     } else {
-      meta.textContent = '尚未接入。选择游客访问，或使用账号登录/注册。';
+      meta.textContent = '请登录或注册以进入终端。';
     }
   }
 
@@ -395,29 +382,6 @@
     return '';
   }
 
-  async function onGuestAccess() {
-    const button = $('#authGuestBtn');
-    if (button) { button.disabled = true; button.textContent = '正在接入…'; }
-    try {
-      const user = await getAuthenticatedUser();
-      if (user) {
-        await refreshIdentity(user);
-      } else {
-        const { data, error } = await getSupabase().auth.signInAnonymously();
-        if (error) throw new Error('游客接入失败：' + error.message);
-        if (!data || !data.user) throw new Error('游客接入失败：Supabase 未返回用户会话。');
-        await refreshIdentity(data.user);
-      }
-      renderMeta();
-      dispatchIdentityEvent('greyauth:changed');
-      closeModal();
-    } catch (error) {
-      setMsg($('#authLoginMsg'), error.message || '游客接入失败', 'error');
-    } finally {
-      if (button) { button.disabled = false; button.textContent = '游客访问'; }
-    }
-  }
-
   async function onRegisterSubmit(event) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -436,56 +400,30 @@
     try {
       const sb = getSupabase();
       const email = await usernameToEmail(username);
-      const authUser = await getAuthenticatedUser();
-      let user;
-      let message;
-
-      if (authUser && (authUser.is_anonymous ||
-          (authUser.app_metadata && authUser.app_metadata.provider === 'anonymous'))) {
-        const { data, error } = await sb.auth.updateUser({
-          email: email,
-          password: password,
-          data: { username: username }
-        });
-        if (error) {
-          console.error('[GreyAuth] Anonymous account upgrade failed:', error);
-          if (/already|exists|registered|duplicate/i.test(error.message || '')) {
-            throw new Error('该账号名已被占用。游客身份和现有稿件仍保留，请更换账号名后重试。');
-          }
-          throw new Error('游客账号升级失败：' + error.message);
+      const { data, error } = await sb.auth.signUp({
+        email: email,
+        password: password,
+        options: { data: { username: username } }
+      });
+      if (error) {
+        console.error('[GreyAuth] Supabase signUp failed:', error);
+        if (/already|exists|registered|duplicate/i.test(error.message || '')) {
+          throw new Error('该账号名已被占用，请更换一个用户名。');
         }
-        user = data.user;
-        if (!user || !user.id) throw new Error('账号升级失败：Supabase 未返回用户。');
-        await requireAuthenticatedSession(user.id, false);
-        await persistProfile(user, username);
-        message = '游客身份已升级为正式账号，原有角色卡沿用当前 Auth ID。';
-      } else {
-        const { data, error } = await sb.auth.signUp({
-          email: email,
-          password: password,
-          options: { data: { username: username } }
-        });
-        if (error) {
-          console.error('[GreyAuth] Supabase signUp failed:', error);
-          if (/already|exists|registered|duplicate/i.test(error.message || '')) {
-            throw new Error('该账号名已被占用，请更换一个用户名。');
-          }
-          throw new Error('注册失败：' + error.message);
-        }
-        user = data && data.user;
-        if (!user) throw new Error('注册失败：Supabase 未返回用户。');
-        if (!data.session) {
-          throw new Error('Supabase 尚未建立登录会话。请关闭邮箱确认后再注册，或完成邮箱确认后登录。');
-        }
-        await requireAuthenticatedSession(user.id, false);
-        await persistProfile(user, username);
-        message = '账号注册成功。';
+        throw new Error('注册失败：' + error.message);
       }
+      const user = data && data.user;
+      if (!user) throw new Error('注册失败：Supabase 未返回用户。');
+      if (!data.session) {
+        throw new Error('Supabase 尚未建立登录会话。请关闭邮箱确认后再注册，或完成邮箱确认后登录。');
+      }
+      await requireAuthenticatedSession(user.id);
+      await persistProfile(user, username);
 
       await refreshIdentity(user);
       renderMeta();
       dispatchIdentityEvent('greyauth:changed');
-      setMsg(msg, message, 'ok');
+      setMsg(msg, '账号注册成功。', 'ok');
       setTimeout(closeModal, 900);
     } catch (error) {
       console.error('[GreyAuth] Registration flow failed:', error);
@@ -526,7 +464,7 @@
       }
       if (!data || !data.user) throw new Error('登录失败：Supabase 未返回用户。');
 
-      await requireAuthenticatedSession(data.user.id, false);
+      await requireAuthenticatedSession(data.user.id);
       const identity = await refreshIdentity(data.user);
       renderMeta();
       dispatchIdentityEvent('greyauth:changed');
@@ -565,13 +503,14 @@
     if (revision === identityRevision) {
       renderIdentity();
       renderMeta();
+      applyAuthGate();
     }
     return identity;
   }
 
   async function fetchMyCharacters(ownerId) {
     const user = await getAuthenticatedUser();
-    if (!user) throw new Error('请先接入账号或游客会话。');
+    if (!user) throw new Error('请先登录。');
     const targetId = ownerId ? String(ownerId) : String(user.id);
     if (targetId !== String(user.id)) throw new Error('不能读取其他用户的角色稿件。');
     const { data, error } = await getSupabase()
@@ -585,7 +524,7 @@
 
   async function saveCharacterDraft({ id, name, content, status }) {
     const user = await getAuthenticatedUser();
-    if (!user) throw new Error('请先接入账号或游客会话。');
+    if (!user) throw new Error('请先登录。');
     const payload = {
       owner_id: user.id,
       name: name,
@@ -606,7 +545,6 @@
   async function init() {
     if (initPromise) return initPromise;
     initPromise = (async () => {
-      LEGACY_STORAGE_KEYS.forEach(key => localStorage.removeItem(key));
       ensureStatusButton();
       ensureAdminReviewButton();
       ensureModal();
@@ -618,6 +556,7 @@
             if (revision !== identityRevision) return;
             renderIdentity();
             renderMeta();
+            applyAuthGate();
             dispatchIdentityEvent('greyauth:changed');
           })
           .catch(error => console.error('[GreyAuth] session identity refresh failed:', error));
@@ -634,6 +573,8 @@
     } catch (error) {
       initPromise = null;
       console.error('[GreyAuth] initialization failed:', error);
+      applyAuthGate();
+      setMsg($('#authLoginMsg'), '无法恢复登录会话：' + error.message, 'error');
       throw error;
     }
   }
@@ -641,13 +582,15 @@
   window.GreyAuth = {
     init: init,
     getIdentity: getIdentity,
+    isAuthenticated: function () {
+      return !!(currentIdentity.authenticated && currentIdentity.type === 'user');
+    },
     getAuthenticatedUser: getAuthenticatedUser,
     openModal: openModal,
     closeModal: closeModal,
     fetchMyCharacters: fetchMyCharacters,
     saveCharacterDraft: saveCharacterDraft,
     refreshIdentity: refreshIdentity,
-    signInAnonymously: onGuestAccess,
     destroy: function () {
       if (authSubscription) authSubscription.unsubscribe();
       authSubscription = null;

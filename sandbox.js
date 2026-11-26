@@ -355,6 +355,17 @@
     const currentRequest = ++state.requestId;
     setStatus('正在读取公共稿件…');
     try {
+      const user = window.GreyAuth && await window.GreyAuth.getAuthenticatedUser();
+      if (!user) {
+        state.items = [];
+        state.selectedId = null;
+        renderItems();
+        setStatus('请先登录后查看公共沙盒。', 'error');
+        if (window.GreyAuth && typeof window.GreyAuth.openModal === 'function') {
+          window.GreyAuth.openModal();
+        }
+        return;
+      }
       const { data, error } = await getClient()
         .from('characters')
         .select('id, name, status, updated_at, content')

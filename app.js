@@ -14,7 +14,15 @@ function clsName(c) {
 
 /* ─────────── 启动 ─────────── */
 let entered = false;
+let booting = false;
+let appStarted = false;
+function hasAuthenticatedUser() {
+  return !!(window.GreyAuth &&
+    typeof window.GreyAuth.isAuthenticated === 'function' &&
+    window.GreyAuth.isAuthenticated());
+}
 function enterApp() {
+  if (!hasAuthenticatedUser()) return;
   if (entered) return;
   entered = true;
   document.removeEventListener('click', enterApp);
@@ -22,15 +30,41 @@ function enterApp() {
   const boot = $('#boot'), app = $('#app');
   if (boot) boot.classList.add('gone');
   if (app)  app.classList.add('ready');
-  try { start(); } catch (e) { console.error(e); }
+  if (!appStarted) {
+    appStarted = true;
+    try { start(); } catch (e) { console.error(e); }
+  }
 }
 async function runBoot() {
+  if (!hasAuthenticatedUser() || booting || entered) return;
+  booting = true;
+  const boot = $('#boot');
+  if (boot) {
+    boot.hidden = false;
+    boot.classList.remove('gone');
+  }
   await sleep(900);
+  if (!hasAuthenticatedUser()) {
+    booting = false;
+    return;
+  }
   const prompt = $('#bootprompt');
   if (prompt) prompt.hidden = false;
   document.addEventListener('click', enterApp);
   document.addEventListener('keydown', enterApp);
-  setTimeout(enterApp, 4000);
+  setTimeout(() => {
+    if (hasAuthenticatedUser()) enterApp();
+  }, 4000);
+}
+function handleAuthStateChange() {
+  if (!hasAuthenticatedUser()) {
+    entered = false;
+    booting = false;
+    document.removeEventListener('click', enterApp);
+    document.removeEventListener('keydown', enterApp);
+    return;
+  }
+  runBoot();
 }
 
 /* ─────────── 术语提示 ─────────── */
@@ -523,4 +557,6 @@ function start() {
   initDirectory({ groups:NAV, openDocument:showDoc });
 }
 
+document.addEventListener('greyauth:ready', handleAuthStateChange);
+document.addEventListener('greyauth:changed', handleAuthStateChange);
 runBoot();

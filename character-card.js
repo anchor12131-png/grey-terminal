@@ -58,7 +58,7 @@
       throw new Error('Supabase Auth 模块尚未就绪。');
     }
     const user = await window.GreyAuth.getAuthenticatedUser();
-    if (!user || !user.id) throw new Error('请先接入账号或点击“游客访问”。');
+    if (!user || !user.id) throw new Error('请先登录。');
     state.ownerId = String(user.id);
     return state.ownerId;
   }
@@ -343,14 +343,17 @@
       setMsg(state.drafts.length ? '草稿列表已加载。' : '暂无草稿，可点击“+ 新建角色”。', state.drafts.length ? 'ok' : '');
     } catch (err) {
       if (requestId !== state.draftRequestId) return;
-      if (err && /请先接入账号或点击“游客访问”/.test(err.message)) {
+      if (err && /请先登录/.test(err.message)) {
         state.ownerId = '';
         state.drafts = [];
         state.selectedId = null;
         renderOwnerMeta();
         renderList();
         renderEditorState();
-        setMsg('请先点击右上角身份区域，选择“游客访问”或登录后管理草稿。', 'warn');
+        setMsg('请先登录后管理个人草稿。', 'warn');
+        if (window.GreyAuth && typeof window.GreyAuth.openModal === 'function') {
+          window.GreyAuth.openModal();
+        }
       } else {
         console.error('[CharacterManager] refreshList error:', err);
         setMsg('读取草稿失败：' + (err && err.message ? err.message : '未知错误'), 'error');

@@ -36,10 +36,10 @@
   </style>
 </head>
 <body>
-  <main class="terminal">
+  <main class="terminal" data-auth-protected hidden>
     <header class="bar-t"></header>
     <h1>在线角色草稿</h1>
-    <p class="hint">使用 Supabase Auth 匿名会话或账号登录。草稿 owner_id 使用当前 Auth 用户 UUID。</p>
+    <p class="hint">使用 Supabase Auth 账号登录。草稿 owner_id 使用当前 Auth 用户 UUID。</p>
     <section class="panel">
       <h2>NEW DRAFT</h2>
       <form id="draftForm">
@@ -104,7 +104,7 @@
           const user = await window.GreyAuth.getAuthenticatedUser();
           if (!user) {
             showDrafts([]);
-            setMessage(message, '请先点击右上角身份区域并选择游客访问或登录。');
+            setMessage(message, '请先登录。');
             return;
           }
           const { data, error } = await client.from('characters')
@@ -140,7 +140,7 @@
         }
         try {
           const user = await window.GreyAuth.getAuthenticatedUser();
-          if (!user) throw new Error('请先接入账号或游客会话。');
+          if (!user) throw new Error('请先登录。');
           const { error } = await client.from('characters').insert([{
             owner_id: user.id,
             name: name,
