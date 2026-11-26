@@ -44,6 +44,13 @@
     el.className = 'cc-msg' + (type ? ' is-' + type : '');
   }
 
+  function requestLogin(message) {
+    setMsg(message, 'warn');
+    if (window.GreyAuth && typeof window.GreyAuth.openModal === 'function') {
+      window.GreyAuth.openModal();
+    }
+  }
+
   function setBusy(isSaving) {
     state.saving = !!isSaving;
     if (state.els.saveBtn) {
@@ -350,10 +357,7 @@
         renderOwnerMeta();
         renderList();
         renderEditorState();
-        setMsg('请先登录后管理个人草稿。', 'warn');
-        if (window.GreyAuth && typeof window.GreyAuth.openModal === 'function') {
-          window.GreyAuth.openModal();
-        }
+        setMsg('登录后可加载和管理个人草稿。', 'warn');
       } else {
         console.error('[CharacterManager] refreshList error:', err);
         setMsg('读取草稿失败：' + (err && err.message ? err.message : '未知错误'), 'error');
@@ -557,6 +561,10 @@
       return true;
     } catch (err) {
       console.error('[CharacterManager] submitForReview count error:', err);
+      if (err && /请先登录/.test(err.message)) {
+        requestLogin('登录后才能提交人物审核。');
+        return false;
+      }
       setMsg('无法计算提交次数：' + (err && err.message ? err.message : '未知错误'), 'error');
       return false;
     } finally {
@@ -603,6 +611,7 @@
       return true;
     } catch (err) {
       console.error('[CharacterManager] submitForReview insert error:', err);
+      if (err && /请先登录/.test(err.message)) requestLogin('登录后才能提交人物审核。');
       if (state.els.reviewMsg) {
         state.els.reviewMsg.textContent = '提交失败：' + (err && err.message ? err.message : '未知错误');
         state.els.reviewMsg.className = 'cc-msg is-error';
@@ -632,9 +641,20 @@
     }
   }
 
-  function onSaveSubmit(e) {
+  async function onSaveSubmit(e) {
     if (e && e.preventDefault) e.preventDefault();
     if (state.saving) return;
+    try {
+      const user = window.GreyAuth && await window.GreyAuth.getAuthenticatedUser();
+      if (!user) {
+        requestLogin('登录后才能创建和保存人物。');
+        return;
+      }
+    } catch (err) {
+      console.error('[CharacterManager] authentication check failed:', err);
+      setMsg('无法确认登录状态：' + (err && err.message ? err.message : '未知错误'), 'error');
+      return;
+    }
     const personName = (state.els.nameInput && state.els.nameInput.value || '').trim();
     if (!personName) { setMsg('请输入人物名称。', 'error'); if (state.els.nameInput) state.els.nameInput.focus(); return; }
     if (personName.length > 40) { setMsg('人物名称不能超过 40 个字符。', 'error'); return; }
@@ -685,6 +705,7 @@
       const msg = '保存失败：' + (err && err.message ? err.message : '未知错误');
       if (state.els.saveMsg) { state.els.saveMsg.textContent = msg; state.els.saveMsg.className = 'cc-msg is-error'; }
       setMsg(msg, 'error');
+      if (err && /请先登录/.test(err.message)) requestLogin('登录后才能创建和保存人物。');
     } finally {
       setBusy(false);
       if (state.els.saveConfirmBtn) { state.els.saveConfirmBtn.disabled = false; state.els.saveConfirmBtn.textContent = '确认保存'; }
@@ -694,7 +715,20 @@
   function bindLocalEvents() {
     if (state.els._bound) return;
     state.els._bound = true;
-    if (state.els.newBtn) state.els.newBtn.addEventListener('click', () => { clearEditor('已切换到新建模式，请输入人物名称。'); if (state.els.nameInput) state.els.nameInput.focus(); });
+    if (state.els.newBtn) state.els.newBtn.addEventListener('click', async () => {
+      try {
+        const user = window.GreyAuth && await window.GreyAuth.getAuthenticatedUser();
+        if (!user) {
+          requestLogin('登录后才能创建人物。');
+          return;
+        }
+        clearEditor('已切换到新建模式，请输入人物名称。');
+        if (state.els.nameInput) state.els.nameInput.focus();
+      } catch (err) {
+        console.error('[CharacterManager] authentication check failed:', err);
+        setMsg('无法确认登录状态：' + (err && err.message ? err.message : '未知错误'), 'error');
+      }
+    });
     if (state.els.resetBtn) state.els.resetBtn.addEventListener('click', () => clearEditor('编辑区已清空。'));
     if (state.els.form) state.els.form.addEventListener('submit', onSaveSubmit);
     if (state.els.list) state.els.list.addEventListener('click', (e) => {
@@ -754,11 +788,12 @@
     state.boundGlobal = true;
     document.addEventListener('greyauth:changed', (e) => {
       const nextOwner = e && e.detail && e.detail.identity && e.detail.identity.ownerId;
+      const keepUnsavedName = !state.ownerId && !!nextOwner;
       state.ownerId = nextOwner ? String(nextOwner) : '';
       state.draftRequestId += 1;
       state.drafts = [];
       state.selectedId = null;
-      if (state.els.nameInput) state.els.nameInput.value = '';
+      if (!keepUnsavedName && state.els.nameInput) state.els.nameInput.value = '';
       renderOwnerMeta();
       renderEditorState();
       closeSaveModal();

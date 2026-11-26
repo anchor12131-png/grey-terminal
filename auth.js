@@ -52,6 +52,20 @@
     const bytes = new TextEncoder().encode(normalized);
     const digest = await crypto.subtle.digest('SHA-256', bytes);
     const hex = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    const safeUsername = normalized.replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
+    const codepointLabel = Array.from(normalized)
+      .slice(0, 4)
+      .map(character => character.codePointAt(0).toString(16))
+      .join('_');
+    const readablePrefix = safeUsername || ('u' + codepointLabel);
+    return readablePrefix + '_' + hex.slice(0, 12) + '@' + INTERNAL_EMAIL_DOMAIN;
+  }
+
+  async function previousUsernameToEmail(username) {
+    const normalized = username.trim().toLowerCase();
+    const bytes = new TextEncoder().encode(normalized);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    const hex = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
     const safeUsername = normalized.replace(/[^a-zA-Z0-9]/g, '').slice(0, 24) || 'user';
     return safeUsername + hex.slice(0, 24) + '@' + INTERNAL_EMAIL_DOMAIN;
   }
@@ -87,42 +101,25 @@
   }
 
   async function persistProfile(authUser, username) {
-    await requireAuthenticatedSession(authUser.id);
-    const { data, error } = await getSupabase()
+    const { error } = await getSupabase()
       .from('users')
-      .insert([{
+      .insert({
         id: authUser.id,
         auth_user_id: authUser.id,
         username: username,
         role: 'player'
-      }])
-      .select('id, auth_user_id, username, role')
-      .single();
+      });
     if (error) {
       console.error('[GreyAuth] public.users profile insert failed:', error);
       if (error.code === '23505') {
         const detail = [error.message, error.details, error.hint].filter(Boolean).join(' ');
-        if (/auth_user_id/i.test(detail)) {
-          const { data: updated, error: updateError } = await getSupabase()
-            .from('users')
-            .update({ username: username })
-            .eq('auth_user_id', authUser.id)
-            .select('id, auth_user_id, username, role')
-            .single();
-          if (updateError) {
-            console.error('[GreyAuth] public.users profile update failed:', updateError);
-            throw new Error('更新用户资料失败：' + updateError.message);
-          }
-          return updated;
-        }
         if (/username/i.test(detail)) {
           throw new Error('用户名已存在，请更换一个用户名。');
         }
-        throw new Error('用户资料发生唯一键冲突：' + (error.message || '请检查 users 表中的 id、auth_user_id 和 username。'));
+        throw new Error('用户资料发生唯一键冲突：' + (error.message || '请检查 users 表中的 id 和 auth_user_id。'));
       }
       throw new Error('创建用户资料失败：' + error.message);
     }
-    return data;
   }
 
   async function hydrateIdentity(authUser, revision) {
@@ -326,24 +323,9 @@
 
   function closeModal() {
     if (!modalEl) return;
-    if (!currentIdentity.authenticated || currentIdentity.type !== 'user') return;
     modalEl.hidden = true;
     document.body.style.overflow = '';
     if (lastFocusEl && typeof lastFocusEl.focus === 'function') lastFocusEl.focus();
-  }
-
-  function applyAuthGate() {
-    const allowed = currentIdentity.authenticated && currentIdentity.type === 'user';
-    const app = $('#app');
-    const boot = $('#boot');
-    const closeButton = $('#authModalClose');
-    if (app) app.classList.toggle('auth-locked', !allowed);
-    if (boot) boot.hidden = !allowed;
-    if (closeButton) closeButton.hidden = !allowed;
-    document.querySelectorAll('[data-auth-protected]').forEach(element => {
-      if (element !== app) element.hidden = !allowed;
-    });
-    if (!allowed) openModal();
   }
 
   function renderMeta() {
@@ -357,7 +339,7 @@
         + '<button type="button" class="auth-secondary" id="authLogoutBtn" style="margin-top:10px">退出当前账号</button>';
       $('#authLogoutBtn', meta).addEventListener('click', onLogout);
     } else {
-      meta.textContent = '请登录或注册以进入终端。';
+      meta.textContent = '可先浏览终端内容；登录后即可创建和管理个人角色。';
     }
   }
 
@@ -414,16 +396,24 @@
       }
       const user = data && data.user;
       if (!user) throw new Error('注册失败：Supabase 未返回用户。');
-      if (!data.session) {
-        throw new Error('Supabase 尚未建立登录会话。请关闭邮箱确认后再注册，或完成邮箱确认后登录。');
+      if (!data.session || !data.session.access_token || !data.session.user ||
+          data.session.user.id !== user.id) {
+        throw new Error('Auth 用户已创建，但 Supabase 未返回有效会话，因此无法按 RLS 写入 users 资料。请先完成邮箱确认后登录（登录时会尝试补建资料）；若使用无法收信的内部邮箱，请在 Supabase 控制台删除这个 Auth 用户、关闭邮箱确认后再注册。');
       }
-      await requireAuthenticatedSession(user.id);
-      await persistProfile(user, username);
+      let profileWriteError = null;
+      try {
+        await persistProfile(user, username);
+      } catch (error) {
+        profileWriteError = error;
+        console.error('[GreyAuth] account created but profile insert failed:', error);
+      }
 
       await refreshIdentity(user);
       renderMeta();
       dispatchIdentityEvent('greyauth:changed');
-      setMsg(msg, '账号注册成功。', 'ok');
+      setMsg(msg, profileWriteError
+        ? '账号已创建并登录，但 users 资料写入失败：' + profileWriteError.message
+        : '账号注册成功。', profileWriteError ? 'warn' : 'ok');
       setTimeout(closeModal, 900);
     } catch (error) {
       console.error('[GreyAuth] Registration flow failed:', error);
@@ -448,6 +438,7 @@
     try {
       const emails = [
         await usernameToEmail(username),
+        await previousUsernameToEmail(username),
         await legacyUsernameToEmail(username)
       ];
       let data = null;
@@ -465,10 +456,20 @@
       if (!data || !data.user) throw new Error('登录失败：Supabase 未返回用户。');
 
       await requireAuthenticatedSession(data.user.id);
+      let profileWriteError = null;
+      try {
+        const profile = await getUserProfile(data.user);
+        if (!profile) await persistProfile(data.user, username);
+      } catch (error) {
+        profileWriteError = error;
+        console.error('[GreyAuth] login succeeded but profile repair failed:', error);
+      }
       const identity = await refreshIdentity(data.user);
       renderMeta();
       dispatchIdentityEvent('greyauth:changed');
-      if (identity.roleError) {
+      if (profileWriteError) {
+        setMsg(msg, '账号已登录，但 users 资料未能读取或补建：' + profileWriteError.message, 'warn');
+      } else if (identity.roleError) {
         setMsg(msg, '账号已登录，但读取用户角色失败；为安全起见暂按普通玩家处理。' + identity.roleError, 'warn');
       } else if (identity.profileMissing) {
         setMsg(msg, '账号已登录，但 users 表中没有对应资料；当前按普通玩家权限显示。', 'warn');
@@ -503,7 +504,6 @@
     if (revision === identityRevision) {
       renderIdentity();
       renderMeta();
-      applyAuthGate();
     }
     return identity;
   }
@@ -556,7 +556,6 @@
             if (revision !== identityRevision) return;
             renderIdentity();
             renderMeta();
-            applyAuthGate();
             dispatchIdentityEvent('greyauth:changed');
           })
           .catch(error => console.error('[GreyAuth] session identity refresh failed:', error));
@@ -573,7 +572,6 @@
     } catch (error) {
       initPromise = null;
       console.error('[GreyAuth] initialization failed:', error);
-      applyAuthGate();
       setMsg($('#authLoginMsg'), '无法恢复登录会话：' + error.message, 'error');
       throw error;
     }

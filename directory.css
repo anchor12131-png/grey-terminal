@@ -18,9 +18,9 @@
 .directory-heading h1{margin:10px 0 6px;color:#e8ecef;font-size:24px;
   font-weight:500;letter-spacing:.1em}
 .directory-heading p{margin:0;color:var(--ink3);font-size:11px;letter-spacing:.04em;line-height:1.6}
-.dir-quick-actions{margin-top:16px;display:flex;justify-content:center}
+.dir-quick-actions{margin-top:auto;padding-top:10px;display:flex;flex:none}
 .dir-quick-link{display:flex;flex-direction:column;align-items:flex-start;gap:4px;
-  min-width:min(320px,100%);padding:12px 16px;text-align:left;cursor:pointer;
+  width:100%;min-width:0;padding:12px 16px;text-align:left;cursor:pointer;
   background:rgba(121,180,198,.04);border:1px solid rgba(121,180,198,.22);
   color:var(--ink);transition:border-color .18s,background .18s,transform .18s}
 .dir-quick-link:hover,.dir-quick-link:focus-visible{border-color:rgba(121,180,198,.5);
@@ -97,8 +97,8 @@
   .directory-view{padding:22px 14px 18px;overflow:hidden}
   .directory-heading{margin-bottom:14px}
   .directory-heading h1{font-size:20px}
-  .dir-quick-actions{margin-top:12px}
-  .dir-quick-link{min-width:0;width:100%}
+  .dir-quick-actions{margin-top:0;padding-top:0;flex:0 0 220px}
+  .dir-quick-link{min-width:0;width:100%;height:100%;min-height:60px}
   .directory-layout{grid-template-columns:1fr;gap:10px;min-height:0}
   .directory-sidebar{flex-direction:row;overflow-x:auto;overflow-y:hidden;
     padding:0 0 2px;gap:8px}

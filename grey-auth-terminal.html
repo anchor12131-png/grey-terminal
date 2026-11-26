@@ -36,10 +36,10 @@
   </style>
 </head>
 <body>
-  <main class="terminal" data-auth-protected hidden>
+  <main class="terminal">
     <header class="bar-t"></header>
     <h1>在线角色草稿</h1>
-    <p class="hint">使用 Supabase Auth 账号登录。草稿 owner_id 使用当前 Auth 用户 UUID。</p>
+    <p class="hint">页面浏览无需登录；创建草稿时需要账号。草稿 owner_id 使用当前 Auth 用户 UUID。</p>
     <section class="panel">
       <h2>NEW DRAFT</h2>
       <form id="draftForm">
@@ -104,7 +104,7 @@
           const user = await window.GreyAuth.getAuthenticatedUser();
           if (!user) {
             showDrafts([]);
-            setMessage(message, '请先登录。');
+            setMessage(message, '登录后可查看个人草稿。');
             return;
           }
           const { data, error } = await client.from('characters')
@@ -152,6 +152,9 @@
           await refreshDrafts();
         } catch (error) {
           console.error('[AuthSandbox] save failed:', error);
+          if (/请先登录/.test(error.message || '') && window.GreyAuth) {
+            window.GreyAuth.openModal();
+          }
           setMessage(message, '保存失败：' + error.message, true);
         }
       });
