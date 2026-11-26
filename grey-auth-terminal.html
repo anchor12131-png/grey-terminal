@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>灰星终端 · Auth 沙盒</title>
+  <link rel="stylesheet" href="auth.css">
+  <style>
+    :root {
+      --bg:#07080a; --line:rgba(150,175,185,.14); --line2:rgba(150,175,185,.24);
+      --ink:#c6ccd2; --ink2:#8a9299; --ink3:#575e65; --acc:#79b4c6;
+      --ok:#8fbf9a; --warn:#c2a06a; --alert:#bd7a72;
+      --mono:"JetBrains Mono","Consolas",monospace;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:#07080a;color:var(--ink);font-family:Inter,"Segoe UI","Microsoft YaHei",sans-serif}
+    .terminal{width:min(980px,100%);margin:0 auto;padding:24px}
+    .bar-t{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+    .bar-t::before{content:"GREYSTAR AUTH SANDBOX";color:var(--ink3);font:9px var(--mono);letter-spacing:.18em}
+    .auth-status-btn{margin-left:auto}
+    h1{margin:26px 0 8px;font-size:22px;font-weight:500;letter-spacing:.1em}
+    .hint,.message{color:var(--ink3);font:10px/1.8 var(--mono)}
+    .panel{margin-top:22px;padding:18px;border:1px solid var(--line);background:#0b0f13}
+    .panel h2{margin:0 0 14px;color:var(--acc);font:10px var(--mono);letter-spacing:.16em}
+    .field{margin-bottom:14px}
+    .field label{display:block;margin-bottom:7px;color:var(--ink3);font:9px var(--mono);letter-spacing:.12em}
+    .field input,.field textarea{width:100%;padding:10px 12px;border:1px solid var(--line2);background:var(--bg);color:var(--ink);font:11px var(--mono)}
+    .field textarea{min-height:140px;resize:vertical;line-height:1.7}
+    .action{padding:9px 13px;border:1px solid rgba(121,180,198,.45);background:rgba(121,180,198,.08);color:var(--acc);font:9px var(--mono);letter-spacing:.1em;cursor:pointer}
+    .action:hover{background:rgba(121,180,198,.16)}
+    .draft{margin-top:10px;padding:12px;border:1px solid var(--line);background:rgba(255,255,255,.015)}
+    .draft strong{display:block;margin-bottom:7px;color:#dceef4;font-size:12px;font-weight:400}
+    .draft p{margin:0;color:var(--ink2);font-size:11px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+    @media(max-width:600px){.terminal{padding:14px}.bar-t::before{font-size:7px}.panel{padding:14px}}
+  </style>
+</head>
+<body>
+  <main class="terminal">
+    <header class="bar-t"></header>
+    <h1>在线角色草稿</h1>
+    <p class="hint">使用 Supabase Auth 匿名会话或账号登录。草稿 owner_id 使用当前 Auth 用户 UUID。</p>
+    <section class="panel">
+      <h2>NEW DRAFT</h2>
+      <form id="draftForm">
+        <div class="field">
+          <label for="draftName">角色名称</label>
+          <input id="draftName" maxlength="80" autocomplete="off" required>
+        </div>
+        <div class="field">
+          <label for="draftContent">角色内容（JSON）</label>
+          <textarea id="draftContent" placeholder='{"background":"..."}'></textarea>
+        </div>
+        <button class="action" type="submit">保存草稿</button>
+        <div class="message" id="draftMessage" aria-live="polite"></div>
+      </form>
+    </section>
+    <section class="panel">
+      <h2>MY DRAFTS</h2>
+      <div class="message" id="listMessage" aria-live="polite"></div>
+      <div id="draftList"></div>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-client.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const $ = id => document.getElementById(id);
+      const client = window.GreySupabase;
+
+      function setMessage(element, text, isError) {
+        element.textContent = text || '';
+        element.style.color = isError ? '#bd7a72' : '';
+      }
+
+      function showDrafts(rows) {
+        const list = $('draftList');
+        if (!rows.length) {
+          list.innerHTML = '<div class="hint">当前身份暂无草稿。</div>';
+          return;
+        }
+        list.innerHTML = rows.map(row =>
+          '<article class="draft"><strong>' + escapeHtml(row.name || '（未命名）') + '</strong>' +
+          '<p>' + escapeHtml(formatContent(row.content)) + '</p></article>'
+        ).join('');
+      }
+
+      function escapeHtml(value) {
+        return String(value == null ? '' : value)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      function formatContent(content) {
+        if (content == null) return '（暂无内容）';
+        return typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+      }
+
+      async function refreshDrafts() {
+        const message = $('listMessage');
+        try {
+          const user = await window.GreyAuth.getAuthenticatedUser();
+          if (!user) {
+            showDrafts([]);
+            setMessage(message, '请先点击右上角身份区域并选择游客访问或登录。');
+            return;
+          }
+          const { data, error } = await client.from('characters')
+            .select('id, name, status, content, updated_at')
+            .eq('owner_id', user.id)
+            .eq('status', 'draft')
+            .order('updated_at', { ascending: false });
+          if (error) throw error;
+          showDrafts(data || []);
+          setMessage(message, '已加载 ' + (data || []).length + ' 条草稿。');
+        } catch (error) {
+          console.error('[AuthSandbox] list failed:', error);
+          setMessage(message, '读取草稿失败：' + error.message, true);
+        }
+      }
+
+      $('draftForm').addEventListener('submit', async event => {
+        event.preventDefault();
+        const message = $('draftMessage');
+        const name = $('draftName').value.trim();
+        if (!name) {
+          setMessage(message, '请输入角色名称。', true);
+          return;
+        }
+        let content = {};
+        const rawContent = $('draftContent').value.trim();
+        if (rawContent) {
+          try { content = JSON.parse(rawContent); }
+          catch (_) {
+            setMessage(message, '角色内容必须是有效 JSON。', true);
+            return;
+          }
+        }
+        try {
+          const user = await window.GreyAuth.getAuthenticatedUser();
+          if (!user) throw new Error('请先接入账号或游客会话。');
+          const { error } = await client.from('characters').insert([{
+            owner_id: user.id,
+            name: name,
+            status: 'draft',
+            content: content
+          }]);
+          if (error) throw error;
+          setMessage(message, '草稿已保存。');
+          await refreshDrafts();
+        } catch (error) {
+          console.error('[AuthSandbox] save failed:', error);
+          setMessage(message, '保存失败：' + error.message, true);
+        }
+      });
+
+      document.addEventListener('greyauth:ready', refreshDrafts);
+      document.addEventListener('greyauth:changed', refreshDrafts);
+    })();
+  </script>
+</body>
+</html>

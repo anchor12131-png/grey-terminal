@@ -237,6 +237,13 @@
           '<div class="directory-kicker">GREYSTAR INTERNAL TERMINAL · INDEX</div>' +
           '<h1>模块目录</h1>' +
           '<p>左侧选择主目录，右侧浏览子目录；次级目录将向右展开，便于继续扩展更深层级。</p>' +
+          '<div class="dir-quick-actions">' +
+            '<button type="button" class="dir-quick-link" data-document-id="character_card">' +
+              '<span class="dir-quick-kicker">FUNCTION</span>' +
+              '<span class="dir-quick-title">角色档案管理</span>' +
+              '<span class="dir-quick-desc">进入车卡页面，创建/管理角色草稿</span>' +
+            '</button>' +
+          '</div>' +
         '</div>';
 
       const layout = document.createElement('div');

@@ -293,9 +293,50 @@ function highlightTop(topId) {
 /* ─────────── 文档显示 ─────────── */
 let currentId = null;
 
+function showCharacterCardPage(topId) {
+  const app = $('#app');
+  if (app) app.classList.remove('directory-home');
+  const stage = $('#stage');
+  if (!stage) return;
+
+  currentId = topId;
+  stage.innerHTML = '';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'mod on';
+  stage.appendChild(wrap);
+
+  if (window.CharacterManager && typeof window.CharacterManager.mount === 'function') {
+    try {
+      Promise.resolve(window.CharacterManager.mount(wrap)).catch((err) => {
+        console.error('[CharacterCard] mount failed:', err);
+        wrap.innerHTML = '<div class="doc" style="padding:24px"><p class="warn-t">角色档案加载失败：' + (err && err.message ? err.message : '未知错误') + '</p></div>';
+      });
+    } catch (err) {
+      console.error('[CharacterCard] mount failed:', err);
+      wrap.innerHTML = '<div class="doc" style="padding:24px"><p class="warn-t">角色档案加载失败：' + (err && err.message ? err.message : '未知错误') + '</p></div>';
+    }
+  } else {
+    wrap.innerHTML = '<div class="doc" style="padding:24px"><p class="warn-t">角色档案模块未加载，请刷新页面后重试。</p></div>';
+  }
+
+  wrap.scrollTop = 0;
+  highlightTop(topId);
+}
+
 function showDoc(id) {
   const topId = findTopId(id);
   if (!topId) return;
+
+  if (topId === 'character_card') {
+    if (currentId !== topId) {
+      showCharacterCardPage(topId);
+    } else {
+      highlightTop(topId);
+    }
+    return;
+  }
+
   const doc = DOCS[topId];
   if (!doc) return;
   const app = $('#app');
