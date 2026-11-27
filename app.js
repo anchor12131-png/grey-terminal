@@ -284,13 +284,20 @@ let scrollObserver = null;
 let scrollWrap = null;
 let scrollHandler = null;
 
-function setupScrollObserver(wrap, topId) {
-  if (scrollObserver) { scrollObserver.disconnect(); scrollObserver = null; }
+function clearScrollObserver() {
+  if (scrollObserver) {
+    scrollObserver.disconnect();
+    scrollObserver = null;
+  }
   if (scrollWrap && scrollHandler) {
     scrollWrap.removeEventListener('scroll', scrollHandler);
   }
   scrollWrap = null;
   scrollHandler = null;
+}
+
+function setupScrollObserver(wrap, topId) {
+  clearScrollObserver();
 
   const sections = $$('.doc-section', wrap);
   if (!sections.length) return;
@@ -370,6 +377,7 @@ function highlightTop(topId) {
 let currentId = null;
 
 function showCharacterCardPage(topId) {
+  clearScrollObserver();
   const app = $('#app');
   if (app) app.classList.remove('directory-home');
   const stage = $('#stage');
@@ -616,7 +624,14 @@ function start() {
       return $('.mod', $('#stage'));
     }
   });
-  initDirectory({ groups:NAV, openDocument:showDoc });
+  initDirectory({
+    groups:NAV,
+    openDocument:showDoc,
+    onHome: () => {
+      clearScrollObserver();
+      currentId = null;
+    }
+  });
 }
 
 runBoot();

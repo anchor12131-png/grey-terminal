@@ -250,6 +250,7 @@
     if (!stage || !app) return;
 
     function renderDirectory() {
+      if (typeof options.onHome === 'function') options.onHome();
       stage.replaceChildren();
       app.classList.add('directory-home');
 
