@@ -37,10 +37,11 @@
     return node;
   }
 
-  /* -------- Mobile: nested tree -------- */
+  /* -------- Mobile: primary groups with jump-only second-level entries -------- */
   function renderMobileNode(item, depth) {
+    const canExpand = depth === 0 && hasChildren(item);
     const node = document.createElement('div');
-    node.className = 'dir-node dir-node-mobile' + (hasChildren(item) ? ' has-children' : '');
+    node.className = 'dir-node dir-node-mobile' + (canExpand ? ' has-children' : '');
     node.dataset.depth = String(depth);
 
     const row = document.createElement('div');
@@ -52,7 +53,7 @@
       marker.setAttribute('aria-hidden', 'true');
       row.appendChild(marker);
     }
-    if (hasChildren(item)) {
+    if (canExpand) {
       const childrenId = 'dir-mobile-children-' + (++mobileNodeSequence);
       const toggle = createButton(item.title, 'dir-mobile-toggle');
       toggle.setAttribute('aria-expanded', 'false');
@@ -79,7 +80,7 @@
     }
     node.appendChild(row);
 
-    if (hasChildren(item)) {
+    if (canExpand) {
       const children = document.createElement('div');
       children.className = 'dir-mobile-children';
       children.id = node.dataset.childrenId;
@@ -258,7 +259,7 @@
         '<div class="directory-heading">' +
           '<div class="directory-kicker">GREYSTAR INTERNAL TERMINAL · INDEX</div>' +
           '<h1>模块目录</h1>' +
-          '<p>左侧选择主目录，右侧浏览子目录；次级目录将向右展开，便于继续扩展更深层级。</p>' +
+          '<p>选择主目录浏览次级条目，点击“跳转”进入对应内容。</p>' +
         '</div>';
 
       const layout = document.createElement('div');

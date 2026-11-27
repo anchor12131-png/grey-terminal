@@ -324,7 +324,7 @@
       +     '<input class="auth-input" id="authRegisterPassword" type="password" autocomplete="new-password" minlength="6" maxlength="64" placeholder="设置密码（至少 6 位）" /></div>'
       +     '<div class="auth-field"><label for="authRegisterPassword2">确认密码</label>'
       +     '<input class="auth-input" id="authRegisterPassword2" type="password" autocomplete="new-password" minlength="6" maxlength="64" placeholder="再次输入密码" /></div>'
-      +     '<p class="auth-hint warn">账号名将映射为不可收信的内部登录地址，不支持邮件找回；请妥善保管密码。</p>'
+      +     '<p class="auth-hint warn">无需填写邮箱或手机号，请注意保存账号与密码</p>'
       +     '<div class="auth-msg" id="authRegisterMsg" aria-live="polite"></div>'
       +     '<div class="auth-actions"><button type="submit" class="auth-submit" data-ready-label="建立身份" disabled>终端初始化中...</button></div>'
       +   '</form>'

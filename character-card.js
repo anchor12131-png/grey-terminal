@@ -166,7 +166,6 @@
         '<header class="cc-page-head">' +
           '<div class="cc-kicker">GREYSTAR / CHARACTER ARCHIVE</div>' +
           '<h1 class="cc-title">角色档案管理中心</h1>' +
-          '<p class="cc-desc">管理当前身份下的角色草稿。每次保存会生成一个版本存档，命名格式为“人物名称 + 第X次修改 + 自定义后缀”。</p>' +
         '</header>' +
         '<nav class="sb-tabs" aria-label="角色档案视图">' +
           '<button type="button" class="sb-tab is-active" id="sbDraftTab" data-sb-view="drafts" aria-pressed="true">我的草稿 <span>MY DRAFTS</span></button>' +
@@ -185,15 +184,14 @@
           '<main class="cc-editor">' +
             '<div class="cc-editor-head">' +
               '<div class="cc-section-label">EDITOR</div>' +
-              '<div class="cc-edit-state" id="ccEditState">新建草稿</div>' +
             '</div>' +
             '<form id="ccForm" class="cc-form" novalidate>' +
               characterFormMarkup() +
+              '<div class="cc-msg" id="ccMsg" aria-live="polite"></div>' +
               '<div class="cc-actions">' +
                 '<button type="submit" class="cc-btn cc-btn-primary" id="ccSaveBtn">保存草稿</button>' +
                 '<button type="button" class="cc-btn cc-btn-ghost" id="ccResetBtn">清空编辑</button>' +
               '</div>' +
-              '<div class="cc-msg" id="ccMsg" aria-live="polite"></div>' +
             '</form>' +
             '<div class="cc-editor-foot">' +
               '<div class="cc-foot-item"><span>记录 ID</span><code id="ccCurrentId">NEW</code></div>' +
@@ -312,7 +310,6 @@
     state.els.saveBtn = $('ccSaveBtn');
     state.els.resetBtn = $('ccResetBtn');
     state.els.ownerMeta = $('ccOwnerMeta');
-    state.els.editState = $('ccEditState');
     state.els.currentId = $('ccCurrentId');
     state.els.currentStatus = $('ccCurrentStatus');
     state.els.saveModal = $('ccSaveModal');
@@ -348,7 +345,6 @@
 
   function renderEditorState() {
     const selected = state.drafts.find((d) => d.id === state.selectedId) || null;
-    if (state.els.editState) state.els.editState.textContent = selected ? '基于存档编辑' : '新建草稿';
     if (state.els.currentId) {
       state.els.currentId.textContent = selected ? String(selected.id).slice(0, 8) + '?' : 'NEW';
       state.els.currentId.title = selected ? String(selected.id) : 'NEW';

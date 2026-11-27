@@ -6,6 +6,9 @@
 const $  = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const expandedSidebarBranches = new Set();
+const collapsedSidebarBranches = new Set();
+let activeSidebarId = null;
 
 function clsBadge(c) { return 'cls cls-' + c; }
 function clsName(c) {
@@ -71,7 +74,6 @@ function markupTerms(root) {
       const tag = p.nodeName;
       if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'TEXTAREA') return NodeFilter.FILTER_REJECT;
       if (p.classList && p.classList.contains('term')) return NodeFilter.FILTER_REJECT;
-      if (p.classList && p.classList.contains('doc-link')) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     }
   });
@@ -139,21 +141,108 @@ function findTopId(id) {
 }
 
 /* ─────────── 导航 ─────────── */
-function renderSubItems(container, subs, depth) {
-  subs.forEach(sub => {
-    const s = document.createElement('div');
-    s.className = depth === 1 ? 'side-sub-item' : 'side-sub-item side-sub-item-2';
-    s.dataset.id = sub.id;
-    s.innerHTML =
-      '<span class="sub-mark">' + (depth === 1 ? '└' : '·') + '</span>' +
-      '<span class="sub-title">' + sub.title + '</span>';
-    s.addEventListener('click', e => {
-      e.stopPropagation();
-      showDoc(sub.id);
+function renderNavEntry(item, depth) {
+  const entry = document.createElement('div');
+  entry.className = 'side-entry';
+
+  const row = document.createElement('div');
+  row.className = depth === 0
+    ? 'side-item'
+    : depth === 1 ? 'side-sub-item' : 'side-sub-item side-sub-item-2';
+  row.dataset.id = item.id;
+
+  const main = document.createElement('button');
+  main.type = 'button';
+  main.className = 'side-entry-main';
+
+  const title = document.createElement('div');
+  title.className = depth === 0 ? 'si-title' : 'sub-title';
+  title.textContent = item.title;
+  if (depth > 0) {
+    const marker = document.createElement('span');
+    marker.className = 'sub-mark';
+    marker.textContent = depth === 1 ? '└' : '·';
+    main.appendChild(marker);
+  }
+  main.appendChild(title);
+
+  const badgeText = item.badge || item.note;
+  if (badgeText) {
+    const badges = document.createElement('div');
+    badges.className = depth === 0 ? 'si-tags' : 'si-tags side-sub-tags';
+    const badge = document.createElement('span');
+    badge.className = item.badge ? 'si-tag si-tag-req' : 'si-tag si-tag-note';
+    badge.textContent = badgeText;
+    badges.appendChild(badge);
+    main.appendChild(badges);
+  }
+  row.appendChild(main);
+
+  const children = Array.isArray(item.sub) ? item.sub : [];
+  let childListId = '';
+  if (children.length) {
+    childListId = 'side-children-' + item.id;
+    main.classList.add('has-children');
+    main.setAttribute('aria-expanded', 'false');
+    main.setAttribute('aria-controls', childListId);
+    main.setAttribute('aria-label', item.title + '，展开或收起子条目');
+    main.addEventListener('click', () => {
+      const isOpen = main.getAttribute('aria-expanded') === 'true';
+      if (isOpen) {
+        expandedSidebarBranches.delete(item.id);
+        collapsedSidebarBranches.add(item.id);
+      } else {
+        collapsedSidebarBranches.delete(item.id);
+        expandedSidebarBranches.add(item.id);
+      }
+      updateSidebarContext(activeSidebarId);
     });
-    container.appendChild(s);
-    if (sub.sub && sub.sub.length) renderSubItems(container, sub.sub, depth + 1);
-  });
+  } else {
+    main.addEventListener('click', () => {
+      expandedSidebarBranches.clear();
+      collapsedSidebarBranches.clear();
+      showDoc(item.id);
+    });
+  }
+  entry.appendChild(row);
+
+  if (children.length) {
+    const childList = document.createElement('div');
+    childList.className = 'side-sub';
+    childList.id = childListId;
+    childList.hidden = true;
+    children.forEach(child => childList.appendChild(renderNavEntry(child, depth + 1)));
+    entry.appendChild(childList);
+  }
+  return entry;
+}
+
+function updateSidebarContext(activeId) {
+  const list = $('#navlist');
+  if (!list) return;
+  const path = activeId ? getAncestors(activeId).concat(activeId) : [];
+
+  function updateEntries(container, depth) {
+    Array.from(container.children).forEach(entry => {
+      if (!entry.classList.contains('side-entry')) return;
+      const row = entry.firstElementChild;
+      const children = entry.querySelector(':scope > .side-sub');
+      if (!row || !children) return;
+
+      const id = row.dataset.id;
+      const followsReadingPath = depth < path.length - 1 && path[depth] === id;
+      const isExpanded = expandedSidebarBranches.has(id);
+      const open = !collapsedSidebarBranches.has(id) && (followsReadingPath || isExpanded);
+      const main = row.querySelector('.side-entry-main.has-children');
+      if (main) {
+        main.setAttribute('aria-expanded', String(open));
+      }
+      children.hidden = !open;
+      if (open) updateEntries(children, depth + 1);
+    });
+  }
+
+  updateEntries(list, 0);
 }
 
 function buildNav() {
@@ -175,27 +264,7 @@ function buildNav() {
     }
 
     items.forEach(item => {
-      const d = document.createElement('div');
-      d.className = 'side-item';
-      d.dataset.id = item.id;
-
-      let tagHTML = '';
-      if (item.badge)      tagHTML = '<span class="si-tag si-tag-req">'  + item.badge + '</span>';
-      else if (item.note)  tagHTML = '<span class="si-tag si-tag-note">' + item.note  + '</span>';
-
-      d.innerHTML =
-        '<div class="si-title">' + item.title + '</div>' +
-        (tagHTML ? '<div class="si-tags">' + tagHTML + '</div>' : '');
-
-      d.addEventListener('click', () => showDoc(item.id));
-      list.appendChild(d);
-
-      if (item.sub && item.sub.length) {
-        const subWrap = document.createElement('div');
-        subWrap.className = 'side-sub';
-        renderSubItems(subWrap, item.sub, 1);
-        list.appendChild(subWrap);
-      }
+      list.appendChild(renderNavEntry(item, 0));
     });
 
     (group.subheadings || []).forEach(entry => {
@@ -207,6 +276,7 @@ function buildNav() {
       list.appendChild(heading);
     });
   });
+  updateSidebarContext(activeSidebarId);
 }
 
 /* ─────────── 滚动观察器 ─────────── */
@@ -266,6 +336,8 @@ function setupScrollObserver(wrap, topId) {
 
 /* ─────────── 高亮 ─────────── */
 function highlightSub(subId) {
+  if (activeSidebarId !== subId) collapsedSidebarBranches.clear();
+  activeSidebarId = subId;
   const ancestors = getAncestors(subId);
   $$('#navlist .side-sub-item').forEach(n => {
     n.classList.toggle('on', n.dataset.id === subId);
@@ -276,9 +348,12 @@ function highlightSub(subId) {
   $$('#navlist .side-item').forEach(n => {
     n.classList.toggle('parent-active', ancestors.includes(n.dataset.id));
   });
+  updateSidebarContext(subId);
 }
 
 function highlightTop(topId) {
+  if (activeSidebarId !== topId) collapsedSidebarBranches.clear();
+  activeSidebarId = topId;
   const ancestors = getAncestors(topId);
   $$('#navlist .side-sub-item').forEach(n => {
     n.classList.remove('on');
@@ -288,6 +363,7 @@ function highlightTop(topId) {
     n.classList.toggle('on', n.dataset.id === topId);
     n.classList.toggle('parent-active', ancestors.includes(n.dataset.id));
   });
+  updateSidebarContext(topId);
 }
 
 /* ─────────── 文档显示 ─────────── */
@@ -360,14 +436,6 @@ function showDoc(id) {
 
     markupTerms(wrap);
 
-    /* 行内链接 → 滚动 */
-    wrap.querySelectorAll('.doc-link').forEach(n => {
-      n.addEventListener('click', () => {
-        const target = n.dataset.target;
-        if (target) scrollToSection(target);
-      });
-    });
-
     /* 观察器 */
     setupScrollObserver(wrap, topId);
 
@@ -427,11 +495,7 @@ function renderSections(sections) {
           '</div>'
         ).join('');
       case 'link':
-        return '<div class="doc-link-wrap">' +
-          '<span class="doc-link" data-target="sub-' + s.id + '">' +
-            '「' + s.v + '」· 点击阅读 →' +
-          '</span>' +
-        '</div>';
+        return '';
       case 'sub': {
         const sub = DOCS[s.id];
         if (!sub) return '';
@@ -490,7 +554,7 @@ function initMobileNav() {
 
   /* 点击侧栏任意条目后，自动关闭抽屉（仅手机端） */
   nav.addEventListener('click', e => {
-    if (e.target.closest('.side-item, .side-sub-item')) {
+    if (e.target.closest('.side-entry-main:not(.has-children)')) {
       if (window.matchMedia('(max-width: 768px)').matches) {
         setTimeout(close, 180);
       }

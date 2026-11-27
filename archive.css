@@ -154,9 +154,7 @@
   display: flex;
   flex-direction: column;
   gap: 13px;
-  max-height: 58vh;
-  overflow: auto;
-  padding-right: 4px;
+  min-width: 0;
 }
 .ar-field { min-width: 0; }
 .ar-field-label, .ar-nested-label {
@@ -369,7 +367,6 @@
   .ar-desc { max-width: 38ch; font-size: 11px; }
   .ar-reload { padding: 8px 9px; font-size: 7px; }
   .ar-card { padding: 15px; }
-  .ar-fields { max-height: none; }
   .ar-delete-panel { padding: 20px; }
 }
 
@@ -380,7 +377,7 @@
   .ar-card-head { flex-wrap: wrap; }
   .ar-card-tools { flex-wrap: wrap; }
   .ar-destroy-button { min-height: 44px; padding: 8px 10px; }
-  .ar-fields { min-width: 0; overflow-wrap: anywhere; }
+  .ar-fields { min-width: 0; overflow: visible; overflow-wrap: anywhere; }
   .ar-delete-modal {
     align-items: center;
     overflow-y: auto;

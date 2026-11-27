@@ -320,7 +320,19 @@
   letter-spacing: 0.06em;
   color: var(--cc-ink3);
 }
-.cc-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.cc-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 -2px;
+  padding: 12px 2px;
+  border-top: 1px solid rgba(121,180,198,.2);
+  background: linear-gradient(180deg, rgba(7,8,10,.88), rgba(7,8,10,.98) 24%);
+  box-shadow: 0 -10px 24px rgba(7,8,10,.55);
+}
 .cc-btn {
   padding: 10px 14px;
   border: 1px solid var(--cc-line2);
@@ -613,5 +625,25 @@
   }
   .cc-save-panel .cc-actions .cc-btn {
     min-height: 44px;
+  }
+}
+
+@media (min-width: 769px) {
+  .cc-page {
+    padding-bottom: 24px;
+  }
+  .cc-shell {
+    min-height: 0;
+    align-items: stretch;
+  }
+  .cc-list {
+    flex: none;
+    overflow: visible;
+  }
+  .cc-form {
+    flex: none;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 }
