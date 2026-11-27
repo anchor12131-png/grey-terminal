@@ -241,7 +241,44 @@
   letter-spacing: 0.14em;
   color: var(--cc-acc);
 }
-.cc-form { flex: 1; }
+.cc-form {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  max-height: 72vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+}
+.cc-form-section {
+  margin: 0 0 20px;
+  padding: 14px;
+  border: 1px solid var(--cc-line);
+  background: rgba(255,255,255,.012);
+}
+.cc-form-section-title {
+  margin: 0 0 14px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--cc-line);
+  color: var(--cc-acc);
+  font-family: var(--cc-mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: .16em;
+}
+.cc-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+  min-width: 0;
+}
+.cc-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+  min-width: 0;
+}
+.cc-field-wide { grid-column: 1 / -1; }
 .cc-field { margin-bottom: 18px; }
 .cc-label {
   display: block;
@@ -251,6 +288,7 @@
   color: var(--cc-ink3);
 }
 .cc-input {
+  box-sizing: border-box;
   width: 100%;
   padding: 11px 12px;
   background: var(--cc-bg);
@@ -267,6 +305,14 @@
   box-shadow: 0 0 0 1px rgba(121,180,198,0.18);
 }
 .cc-input::placeholder { color: #4b535a; }
+.cc-textarea {
+  display: block;
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+.cc-stat-field .cc-input { font-variant-numeric: tabular-nums; }
 .cc-help {
   margin-top: 8px;
   font-size: 8.5px;
@@ -513,7 +559,13 @@
   }
   .cc-item-del { border-left: 1px solid var(--cc-line); }
   .cc-editor { min-width: 0; padding: 14px 12px; }
-  .cc-input { min-height: 44px; font-size: 16px; }
+  .cc-form { max-height: 68vh; padding-right: 2px; -webkit-overflow-scrolling: touch; }
+  .cc-form-section { padding: 12px; margin-bottom: 14px; }
+  .cc-form-grid, .cc-stats-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .cc-field-wide { grid-column: auto; }
+  .cc-input { box-sizing: border-box; width: 100%; min-height: 44px; font-size: 16px; }
+  .cc-textarea { min-height: 132px; font-size: 16px; }
+  .cc-form-section .cc-field { margin-bottom: 18px; }
   .cc-actions { gap: 8px; }
   .cc-actions .cc-btn { min-height: 44px; white-space: normal; }
   .cc-save-modal {

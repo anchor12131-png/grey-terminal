@@ -115,6 +115,23 @@
   <span class="tip-b"></span>
 </div>
 
+<div class="export-preview-modal" id="export-preview-modal" hidden aria-hidden="true">
+  <div class="export-preview-backdrop" data-export-preview-close></div>
+  <section class="export-preview-panel" role="dialog" aria-modal="true" aria-labelledby="export-preview-title">
+    <button class="export-preview-close" type="button" data-export-preview-close aria-label="关闭图片预览">×</button>
+    <h2 class="export-preview-title" id="export-preview-title">角色档案图片</h2>
+    <div class="export-preview-image-wrap">
+      <img class="export-preview-image" data-export-preview-image alt="可长按保存的角色档案图片">
+    </div>
+    <p class="export-preview-hint">请长按图片保存到手机相册</p>
+    <button class="export-preview-close-button" type="button" data-export-preview-close>关闭</button>
+  </section>
+</div>
+<div class="export-toast" id="export-toast" role="status" aria-live="polite" hidden>
+  <span data-export-toast-message></span>
+  <button type="button" data-export-toast-close aria-label="关闭提示">×</button>
+</div>
+
 <div id="export-card-mock" class="export-card-mock" aria-hidden="true">
   <div class="export-card-frame">
     <header class="export-card-head">

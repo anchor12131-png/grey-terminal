@@ -7,9 +7,12 @@
 
   const INTERNAL_EMAIL_DOMAIN = 'greystar.internal';
   const LEGACY_EMAIL_DOMAIN = 'accounts.grey-terminal.invalid';
+  const INITIALIZATION_MESSAGE = '系统加载缓慢，请检查网络或稍候重试';
   const $ = (selector, root) => (root || document).querySelector(selector);
   let modalEl = null;
   let lastFocusEl = null;
+  let clientReady = false;
+  let initToastTimer = null;
   let currentIdentity = {
     type: 'signed-out',
     ownerId: null,
@@ -22,9 +25,59 @@
   let identityRevision = 0;
   let initPromise = null;
 
-  function getSupabase() {
-    if (!window.GreySupabase) throw new Error('Supabase 客户端未初始化');
-    return window.GreySupabase;
+  async function getSupabase() {
+    try {
+      const client = typeof window.getGreySupabase === 'function'
+        ? await window.getGreySupabase()
+        : window.GreySupabase;
+      if (!client) throw new Error('Supabase 客户端尚未就绪。');
+      setClientReady(true);
+      return client;
+    } catch (error) {
+      setClientReady(false);
+      showInitializationToast();
+      console.warn('[GreyAuth] Supabase client is not ready:', error);
+      throw new Error(INITIALIZATION_MESSAGE);
+    }
+  }
+
+  function showInitializationToast() {
+    let toast = $('#authInitToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'authInitToast';
+      toast.className = 'auth-init-toast';
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      document.body.appendChild(toast);
+    }
+    toast.textContent = INITIALIZATION_MESSAGE;
+    toast.hidden = false;
+    if (initToastTimer) clearTimeout(initToastTimer);
+    initToastTimer = setTimeout(() => {
+      toast.hidden = true;
+      initToastTimer = null;
+    }, 7000);
+  }
+
+  function setClientReady(ready) {
+    clientReady = !!ready;
+    const statusButton = $('#authStatusBtn');
+    if (statusButton) statusButton.disabled = !clientReady;
+
+    if (modalEl) {
+      modalEl.querySelectorAll('.auth-submit').forEach(button => {
+        const form = button.closest('form');
+        const busy = !!(form && form.dataset.busy === 'true');
+        button.disabled = !clientReady || busy;
+        button.textContent = busy
+          ? '处理中…'
+          : clientReady
+            ? button.dataset.readyLabel
+            : '终端初始化中...';
+      });
+    }
+    renderIdentity();
   }
 
   function dispatchIdentityEvent(eventName) {
@@ -38,7 +91,8 @@
   }
 
   async function getAuthenticatedUser() {
-    const { data, error } = await getSupabase().auth.getUser();
+    const sb = await getSupabase();
+    const { data, error } = await sb.auth.getUser();
     if (error) {
       if (error.name === 'AuthSessionMissingError' || error.code === 'session_not_found') return null;
       throw new Error('读取登录会话失败：' + error.message);
@@ -78,7 +132,8 @@
   }
 
   async function requireAuthenticatedSession(expectedUserId) {
-    const { data, error } = await getSupabase().auth.getSession();
+    const sb = await getSupabase();
+    const { data, error } = await sb.auth.getSession();
     if (error) throw new Error('确认登录会话失败：' + error.message);
     const sessionUser = data && data.session && data.session.user;
     if (!sessionUser || sessionUser.id !== expectedUserId || !sessionUser.email) {
@@ -88,7 +143,8 @@
   }
 
   async function getUserProfile(authUser) {
-    const { data, error } = await getSupabase()
+    const sb = await getSupabase();
+    const { data, error } = await sb
       .from('users')
       .select('id, auth_user_id, username, role')
       .eq('auth_user_id', authUser.id)
@@ -101,7 +157,8 @@
   }
 
   async function persistProfile(authUser, username) {
-    const { error } = await getSupabase()
+    const sb = await getSupabase();
+    const { error } = await sb
       .from('users')
       .insert({
         id: authUser.id,
@@ -179,8 +236,11 @@
     button.innerHTML = [
       '<span class="auth-dot" aria-hidden="true"></span>',
       '<span class="auth-label">当前身份</span>',
-      '<span class="auth-value" id="authStatusValue">未登录</span>'
+      '<span class="auth-value" id="authStatusValue">' +
+        (clientReady ? '未登录' : '终端初始化中...') +
+      '</span>'
     ].join('');
+    button.disabled = !clientReady;
     button.addEventListener('click', openModal);
     header.appendChild(button);
     return button;
@@ -212,17 +272,21 @@
     const value = $('#authStatusValue');
     const reviewButton = $('#authAdminReviewBtn');
     if (value) {
-      value.textContent = currentIdentity.type === 'user'
+      value.textContent = !clientReady
+        ? '终端初始化中...'
+        : currentIdentity.type === 'user'
         ? (currentIdentity.roleError ? '权限验证失败 - ' : currentIdentity.isAdmin ? '管理员 - ' : '玩家 - ') + currentIdentity.label
         : currentIdentity.label;
     }
     if (reviewButton) reviewButton.hidden = !currentIdentity.isAdmin;
     if (button) {
+      button.disabled = !clientReady;
+      button.classList.toggle('is-loading', !clientReady);
       button.classList.toggle('is-user', currentIdentity.type === 'user');
       button.classList.toggle('is-admin', currentIdentity.isAdmin);
       button.title = currentIdentity.type === 'user'
         ? '当前身份：' + (currentIdentity.isAdmin ? '管理员 - ' : '玩家 - ') + currentIdentity.label
-        : '点击登录或注册';
+        : clientReady ? '点击登录或注册' : INITIALIZATION_MESSAGE;
       button.setAttribute('aria-label', button.title);
     }
   }
@@ -251,7 +315,7 @@
       +     '<div class="auth-field"><label for="authLoginPassword">密码</label>'
       +     '<input class="auth-input" id="authLoginPassword" type="password" autocomplete="current-password" maxlength="64" placeholder="输入密码" /></div>'
       +     '<div class="auth-msg" id="authLoginMsg" aria-live="polite"></div>'
-      +     '<div class="auth-actions"><button type="submit" class="auth-submit">接入账号</button></div>'
+      +     '<div class="auth-actions"><button type="submit" class="auth-submit" data-ready-label="接入账号" disabled>终端初始化中...</button></div>'
       +   '</form>'
       +   '<form id="authPanelRegister" class="auth-panel" role="tabpanel" aria-labelledby="authTabRegister" hidden novalidate>'
       +     '<div class="auth-field"><label for="authRegisterUsername">账号名</label>'
@@ -262,7 +326,7 @@
       +     '<input class="auth-input" id="authRegisterPassword2" type="password" autocomplete="new-password" minlength="6" maxlength="64" placeholder="再次输入密码" /></div>'
       +     '<p class="auth-hint warn">账号名将映射为不可收信的内部登录地址，不支持邮件找回；请妥善保管密码。</p>'
       +     '<div class="auth-msg" id="authRegisterMsg" aria-live="polite"></div>'
-      +     '<div class="auth-actions"><button type="submit" class="auth-submit">建立身份</button></div>'
+      +     '<div class="auth-actions"><button type="submit" class="auth-submit" data-ready-label="建立身份" disabled>终端初始化中...</button></div>'
       +   '</form>'
       +   '<div class="auth-meta" id="authMeta"></div>'
       + '</div>';
@@ -303,16 +367,25 @@
   function clearMsg(element) { setMsg(element, '', ''); }
 
   function setBusy(form, busy) {
+    form.dataset.busy = String(!!busy);
     const button = form.querySelector('.auth-submit');
     if (button) {
-      button.disabled = !!busy;
-      button.dataset.originalText = button.dataset.originalText || button.textContent;
-      button.textContent = busy ? '处理中…' : button.dataset.originalText;
+      button.disabled = !!busy || !clientReady;
+      button.textContent = busy
+        ? '处理中…'
+        : clientReady
+          ? button.dataset.readyLabel
+          : '终端初始化中...';
     }
     form.querySelectorAll('input').forEach(input => { input.disabled = !!busy; });
   }
 
-  function openModal() {
+  async function openModal() {
+    try {
+      await getSupabase();
+    } catch (_) {
+      return;
+    }
     ensureModal();
     lastFocusEl = document.activeElement;
     renderMeta();
@@ -380,7 +453,7 @@
 
     setBusy(form, true);
     try {
-      const sb = getSupabase();
+      const sb = await getSupabase();
       const email = await usernameToEmail(username);
       const { data, error } = await sb.auth.signUp({
         email: email,
@@ -416,7 +489,11 @@
         : '账号注册成功。', profileWriteError ? 'warn' : 'ok');
       setTimeout(closeModal, 900);
     } catch (error) {
-      console.error('[GreyAuth] Registration flow failed:', error);
+      if (error.message === INITIALIZATION_MESSAGE) {
+        console.warn('[GreyAuth] registration is waiting for the Supabase client:', error);
+      } else {
+        console.error('[GreyAuth] Registration flow failed:', error);
+      }
       setMsg(msg, error.message || '注册失败', 'error');
     } finally {
       setBusy(form, false);
@@ -436,6 +513,7 @@
 
     setBusy(form, true);
     try {
+      const sb = await getSupabase();
       const emails = [
         await usernameToEmail(username),
         await previousUsernameToEmail(username),
@@ -444,7 +522,7 @@
       let data = null;
       let error = null;
       for (const email of emails) {
-        const result = await getSupabase().auth.signInWithPassword({ email: email, password: password });
+        const result = await sb.auth.signInWithPassword({ email: email, password: password });
         data = result.data;
         error = result.error;
         if (!error) break;
@@ -478,7 +556,11 @@
       }
       setTimeout(closeModal, 800);
     } catch (error) {
-      console.error('[GreyAuth] Login flow failed:', error);
+      if (error.message === INITIALIZATION_MESSAGE) {
+        console.warn('[GreyAuth] login is waiting for the Supabase client:', error);
+      } else {
+        console.error('[GreyAuth] Login flow failed:', error);
+      }
       setMsg(msg, error.message || '登录失败', 'error');
     } finally {
       setBusy(form, false);
@@ -487,7 +569,8 @@
 
   async function onLogout() {
     try {
-      const { error } = await getSupabase().auth.signOut();
+      const sb = await getSupabase();
+      const { error } = await sb.auth.signOut();
       if (error) throw new Error('退出失败：' + error.message);
       await refreshIdentity(null);
       renderMeta();
@@ -513,7 +596,8 @@
     if (!user) throw new Error('请先登录。');
     const targetId = ownerId ? String(ownerId) : String(user.id);
     if (targetId !== String(user.id)) throw new Error('不能读取其他用户的角色稿件。');
-    const { data, error } = await getSupabase()
+    const sb = await getSupabase();
+    const { data, error } = await sb
       .from('characters')
       .select('*')
       .eq('owner_id', user.id)
@@ -531,7 +615,8 @@
       content: content || {},
       status: status || 'draft'
     };
-    let query = getSupabase().from('characters');
+    const sb = await getSupabase();
+    let query = sb.from('characters');
     if (id) {
       query = query.update(payload).eq('id', id).eq('owner_id', user.id).select().single();
     } else {
@@ -548,7 +633,8 @@
       ensureStatusButton();
       ensureAdminReviewButton();
       ensureModal();
-      const sb = getSupabase();
+      setClientReady(false);
+      const sb = await getSupabase();
       const { data: listener } = sb.auth.onAuthStateChange((_event, session) => {
         const revision = ++identityRevision;
         Promise.resolve().then(() => hydrateIdentity(session && session.user, revision))
@@ -571,11 +657,27 @@
       return await initPromise;
     } catch (error) {
       initPromise = null;
-      console.error('[GreyAuth] initialization failed:', error);
-      setMsg($('#authLoginMsg'), '无法恢复登录会话：' + error.message, 'error');
+      if (error.message === INITIALIZATION_MESSAGE) {
+        console.warn('[GreyAuth] initialization is waiting for the Supabase client:', error);
+      } else {
+        console.error('[GreyAuth] initialization failed:', error);
+      }
+      setMsg($('#authLoginMsg'), error.message === INITIALIZATION_MESSAGE
+        ? INITIALIZATION_MESSAGE
+        : '无法恢复登录会话：' + error.message, 'error');
       throw error;
     }
   }
+
+  window.addEventListener('supabase-ready', () => {
+    if (!clientReady) {
+      init().catch(error => {
+        if (error.message !== INITIALIZATION_MESSAGE) {
+          console.error('[GreyAuth] initialization after client-ready event failed:', error);
+        }
+      });
+    }
+  });
 
   window.GreyAuth = {
     init: init,
@@ -597,9 +699,19 @@
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => init().catch(error => {
-      console.error('[GreyAuth] initialization failed:', error);
+      if (error.message === INITIALIZATION_MESSAGE) {
+        console.warn('[GreyAuth] client initialization is still pending:', error);
+      } else {
+        console.error('[GreyAuth] initialization failed:', error);
+      }
     }), { once: true });
   } else {
-    init().catch(error => console.error('[GreyAuth] initialization failed:', error));
+    init().catch(error => {
+      if (error.message === INITIALIZATION_MESSAGE) {
+        console.warn('[GreyAuth] client initialization is still pending:', error);
+      } else {
+        console.error('[GreyAuth] initialization failed:', error);
+      }
+    });
   }
 })();

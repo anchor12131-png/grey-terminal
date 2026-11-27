@@ -4,6 +4,73 @@
 (function () {
   'use strict';
 
+  let toastTimer = null;
+  let exportUiEventsBound = false;
+
+  function isMobile() {
+    const userAgent = window.navigator && window.navigator.userAgent || '';
+    return /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
+  }
+
+  function isWechatOrQQ() {
+    const userAgent = window.navigator && window.navigator.userAgent || '';
+    return /MicroMessenger|QQ\/|MQQBrowser|V1_AND_SQ|TIM\//i.test(userAgent);
+  }
+
+  function bindExportUiEvents() {
+    if (exportUiEventsBound) return;
+    exportUiEventsBound = true;
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!target || typeof target.closest !== 'function') return;
+      if (target.closest('[data-export-preview-close]')) closeImagePreview();
+      if (target.closest('[data-export-toast-close]')) closeToast();
+    });
+    document.addEventListener('keydown', (event) => {
+      const modal = document.getElementById('export-preview-modal');
+      if (event.key === 'Escape' && modal && !modal.hidden) closeImagePreview();
+    });
+  }
+
+  function openImagePreview(imageUrl) {
+    const modal = document.getElementById('export-preview-modal');
+    const image = modal && modal.querySelector('[data-export-preview-image]');
+    if (!modal || !image) throw new Error('图片预览界面未初始化。');
+    bindExportUiEvents();
+    image.src = imageUrl;
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeImagePreview() {
+    const modal = document.getElementById('export-preview-modal');
+    if (!modal) return;
+    const image = modal.querySelector('[data-export-preview-image]');
+    if (image) image.removeAttribute('src');
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+  }
+
+  function showToast(message) {
+    const toast = document.getElementById('export-toast');
+    const messageElement = toast && toast.querySelector('[data-export-toast-message]');
+    if (!toast || !messageElement) throw new Error('导出提示界面未初始化。');
+    bindExportUiEvents();
+    messageElement.textContent = message;
+    toast.hidden = false;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(closeToast, 9000);
+  }
+
+  function closeToast() {
+    const toast = document.getElementById('export-toast');
+    if (toast) toast.hidden = true;
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+      toastTimer = null;
+    }
+  }
+
   function displayValue(value) {
     if (value == null || value === '') return '未填写';
     if (typeof value === 'boolean') return value ? '是' : '否';
@@ -14,10 +81,22 @@
     const labels = {
       personName: '人物名称',
       gender: '性别',
+      age: '年龄',
+      race: '种族',
       version: '版本',
       background: '背景',
       appearance: '外貌',
       personality: '性格',
+      profession: '职业',
+      stats: '基因图谱',
+      muscle: '肌肉强度',
+      reflex: '神经反射',
+      neural: '神经活性',
+      tolerance: '耐受',
+      genes: '基因潜能',
+      skills: '技能',
+      gear: '武器与装备',
+      extra: '补充',
       history: '经历',
       ability: '能力',
       abilities: '能力',
@@ -59,8 +138,32 @@
     return { content: normalized };
   }
 
-  function comparableGender(value) {
-    return typeof value === 'string' && !value.trim() ? null : value;
+  function isPlainObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  function diffContent(previous, current) {
+    const changed = {};
+    function visit(oldValue, newValue, path) {
+      if (isPlainObject(oldValue) || isPlainObject(newValue)) {
+        if ((oldValue == null || isPlainObject(oldValue)) &&
+            (newValue == null || isPlainObject(newValue))) {
+          const oldObject = isPlainObject(oldValue) ? oldValue : {};
+          const newObject = isPlainObject(newValue) ? newValue : {};
+          const keys = new Set(Object.keys(oldObject).concat(Object.keys(newObject)));
+          keys.forEach((key) => {
+            if (!path && (key === 'personName' || key === 'version')) return;
+            visit(oldObject[key], newObject[key], path ? path + '.' + key : key);
+          });
+          return;
+        }
+      }
+      const oldComparable = oldValue == null || oldValue === '' ? null : oldValue;
+      const newComparable = newValue == null || newValue === '' ? null : newValue;
+      if (JSON.stringify(oldComparable) !== JSON.stringify(newComparable)) changed[path] = true;
+    }
+    visit(previous, current, '');
+    return changed;
   }
 
   async function checkDiff(currentData) {
@@ -83,10 +186,7 @@
     if (!previous) return {};
 
     const previousFields = parseContent(previous.content);
-    return JSON.stringify(comparableGender(fields.gender)) !==
-      JSON.stringify(comparableGender(previousFields.gender))
-      ? { gender: true }
-      : {};
+    return diffContent(previousFields, fields);
   }
 
   function escapeHtml(value) {
@@ -98,18 +198,25 @@
       .replace(/'/g, '&#39;');
   }
 
-  function htmlValue(value) {
+  function diffBadge(path, diff) {
+    return diff && diff[path]
+      ? '<span style="color:#e6a23c;border:1px solid #e6a23c;padding:2px 4px;font-size:10pt;margin-left:8px;">[有改动]</span>'
+      : '';
+  }
+
+  function htmlValue(value, diff, path) {
     if (value == null || value === '') return '<span class="empty">未填写</span>';
     if (Array.isArray(value)) {
       return '<ul>' + (value.length
-        ? value.map((entry) => '<li>' + htmlValue(entry) + '</li>').join('')
+        ? value.map((entry, index) => '<li>' + htmlValue(entry, diff, path + '.' + index) + '</li>').join('')
         : '<li>未填写</li>') + '</ul>';
     }
     if (typeof value === 'object') {
       const entries = Object.keys(value);
       if (!entries.length) return '<span class="empty">未填写</span>';
       return '<table class="nested">' + entries.map((key) =>
-        '<tr><th>' + escapeHtml(contentLabel(key)) + '</th><td>' + htmlValue(value[key]) + '</td></tr>'
+        '<tr><th>' + escapeHtml(contentLabel(key)) + diffBadge(path ? path + '.' + key : key, diff) +
+        '</th><td>' + htmlValue(value[key], diff, path ? path + '.' + key : key) + '</td></tr>'
       ).join('') + '</table>';
     }
     return escapeHtml(displayValue(value));
@@ -128,16 +235,18 @@
   }
 
   async function exportAsWord(characterData) {
+    if (isMobile() && isWechatOrQQ()) {
+      showToast('微信/QQ内无法直接下载文档，请点击右上角「...」，选择「在浏览器中打开」后再进行下载。');
+      return false;
+    }
     const data = characterData || {};
     const diff = await checkDiff(data);
     const name = safeFilename(data.name);
     const fields = parseContent(data.content);
     const rows = Object.keys(fields).map((key) => {
-      const badge = diff[key]
-        ? '<span style="color:#e6a23c;border:1px solid #e6a23c;padding:2px 4px;font-size:10pt;margin-left:8px;">[有改动]</span>'
-        : '';
+      const badge = diffBadge(key, diff);
       return '<tr><th>' + escapeHtml(contentLabel(key)) + '</th><td>' +
-        htmlValue(fields[key]) + badge + '</td></tr>';
+        htmlValue(fields[key], diff, key) + badge + '</td></tr>';
     }).join('');
     const html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">' +
       '<title>' + escapeHtml(name) + '</title><style>' +
@@ -162,13 +271,21 @@
     downloadBlob(blob, '角色档案-' + name + '.doc');
   }
 
-  function createMockValue(value) {
+  function createImageDiffBadge(path, diff) {
+    if (!diff || !diff[path]) return null;
+    const badge = document.createElement('span');
+    badge.style.cssText = 'color:#e6a23c;font-size:12px;border:1px solid #e6a23c;padding:0 4px;margin-left:8px;border-radius:2px;';
+    badge.textContent = '[有改动]';
+    return badge;
+  }
+
+  function createMockValue(value, diff, path) {
     if (Array.isArray(value)) {
       const list = document.createElement('ul');
       list.className = 'export-value-list';
       (value.length ? value : ['未填写']).forEach((entry) => {
         const item = document.createElement('li');
-        item.appendChild(createMockValue(entry));
+        item.appendChild(createMockValue(entry, diff, path));
         list.appendChild(item);
       });
       return list;
@@ -187,7 +304,10 @@
           label.className = 'export-nested-label';
           label.textContent = contentLabel(key);
           row.appendChild(label);
-          row.appendChild(createMockValue(value[key]));
+          const childPath = path ? path + '.' + key : key;
+          const badge = createImageDiffBadge(childPath, diff);
+          if (badge) row.appendChild(badge);
+          row.appendChild(createMockValue(value[key], diff, childPath));
           group.appendChild(row);
         });
       }
@@ -217,13 +337,9 @@
       label.className = 'export-card-label';
       label.textContent = contentLabel(key);
       field.appendChild(label);
-      field.appendChild(createMockValue(fields[key]));
-      if (diff[key]) {
-        const badge = document.createElement('span');
-        badge.style.cssText = 'color:#e6a23c;font-size:12px;border:1px solid #e6a23c;padding:0 4px;margin-left:8px;border-radius:2px;';
-        badge.textContent = '[有改动]';
-        field.appendChild(badge);
-      }
+      field.appendChild(createMockValue(fields[key], diff, key));
+      const badge = createImageDiffBadge(key, diff);
+      if (badge) field.appendChild(badge);
       fieldsContainer.appendChild(field);
     });
     if (!fieldsContainer.childElementCount) {
@@ -261,13 +377,17 @@
     });
     try {
       const imageUrl = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.href = imageUrl;
-      link.download = '角色档案-' + safeFilename(data.name) + '.png';
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      if (isMobile()) {
+        openImagePreview(imageUrl);
+      } else {
+        const link = document.createElement('a');
+        link.href = imageUrl;
+        link.download = '角色档案-' + safeFilename(data.name) + '.png';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
     } finally {
       canvas.width = 0;
       canvas.height = 0;

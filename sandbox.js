@@ -69,11 +69,35 @@
     return Number.isNaN(value) ? 0 : value;
   }
 
-  function comparableGender(value) {
-    return typeof value === 'string' && !value.trim() ? null : value;
+  function isPlainObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
   }
 
-  function pendingWithGenderChanges(records) {
+  function diffContent(previous, current) {
+    const changed = {};
+    function visit(oldValue, newValue, path) {
+      if (isPlainObject(oldValue) || isPlainObject(newValue)) {
+        if ((oldValue == null || isPlainObject(oldValue)) &&
+            (newValue == null || isPlainObject(newValue))) {
+          const oldObject = isPlainObject(oldValue) ? oldValue : {};
+          const newObject = isPlainObject(newValue) ? newValue : {};
+          const keys = new Set(Object.keys(oldObject).concat(Object.keys(newObject)));
+          keys.forEach((key) => {
+            if (!path && (key === 'personName' || key === 'version')) return;
+            visit(oldObject[key], newObject[key], path ? path + '.' + key : key);
+          });
+          return;
+        }
+      }
+      const oldComparable = oldValue == null || oldValue === '' ? null : oldValue;
+      const newComparable = newValue == null || newValue === '' ? null : newValue;
+      if (JSON.stringify(oldComparable) !== JSON.stringify(newComparable)) changed[path] = true;
+    }
+    visit(previous, current, '');
+    return changed;
+  }
+
+  function pendingWithChanges(records) {
     const ordered = records.slice().sort((a, b) => timestamp(b) - timestamp(a));
     return ordered.reduce((pending, record, index) => {
       if (record.status !== 'pending') return pending;
@@ -83,11 +107,9 @@
         characterKey(candidate) === key
       );
       const currentContent = contentObject(record.content);
-      const previousContent = previous ? contentObject(previous.content) : null;
-      const genderChanged = !!previous &&
-        JSON.stringify(comparableGender(previousContent.gender)) !==
-          JSON.stringify(comparableGender(currentContent.gender));
-      pending.push(Object.assign({}, record, { genderChanged: genderChanged }));
+      const previousContent = previous ? contentObject(previous.content) : {};
+      const changedFields = previous ? diffContent(previousContent, currentContent) : {};
+      pending.push(Object.assign({}, record, { changedFields: changedFields }));
       return pending;
     }, []);
   }
@@ -143,10 +165,22 @@
     const labels = {
       personName: '人物名称',
       gender: '性别',
+      age: '年龄',
+      race: '种族',
       version: '版本',
       background: '背景',
       appearance: '外貌',
       personality: '性格',
+      profession: '职业',
+      stats: '基因图谱',
+      muscle: '肌肉强度',
+      reflex: '神经反射',
+      neural: '神经活性',
+      tolerance: '耐受',
+      genes: '基因潜能',
+      skills: '技能',
+      gear: '武器与装备',
+      extra: '补充',
       history: '经历',
       ability: '能力',
       abilities: '能力',
@@ -162,13 +196,14 @@
     return String(value);
   }
 
-  function createContentField(key, value, genderChanged) {
+  function createContentField(key, value, changedFields, parentPath) {
+    const path = parentPath ? parentPath + '.' + key : key;
     const field = document.createElement('div');
     field.className = 'sb-field';
     const label = document.createElement('div');
     label.className = 'sb-field-label';
     label.textContent = contentLabel(key);
-    if (genderChanged) {
+    if (changedFields && changedFields[path]) {
       const badge = document.createElement('span');
       badge.className = 'sb-field-updated';
       badge.textContent = '有改动';
@@ -183,12 +218,12 @@
       if (!value.length) {
         valueBox.textContent = '未填写';
       } else {
-        value.forEach((entry) => {
+        value.forEach((entry, index) => {
           const item = document.createElement('div');
           item.className = 'sb-field-list-item';
           if (entry && typeof entry === 'object') {
             Object.keys(entry).forEach((childKey) => {
-              item.appendChild(createContentField(childKey, entry[childKey]));
+              item.appendChild(createContentField(childKey, entry[childKey], changedFields, path + '.' + index));
             });
           } else {
             item.textContent = readableValue(entry);
@@ -201,7 +236,7 @@
       const keys = Object.keys(value);
       if (!keys.length) valueBox.textContent = '未填写';
       keys.forEach((childKey) => {
-        valueBox.appendChild(createContentField(childKey, value[childKey]));
+        valueBox.appendChild(createContentField(childKey, value[childKey], changedFields, path));
       });
     } else {
       valueBox.textContent = readableValue(value);
@@ -245,7 +280,8 @@
         fields.appendChild(createContentField(
           key,
           content[key],
-          key === 'gender' && item.genderChanged
+          item.changedFields,
+          ''
         ));
       });
     } else {
@@ -350,7 +386,11 @@
     renderItems();
     setStatus('正在本地生成档案；不会上传文件。');
     try {
-      await exporter[method](characterData);
+      const exported = await exporter[method](characterData);
+      if (exported === false) {
+        setStatus('请按提示在外部浏览器中下载文档。');
+        return false;
+      }
       setStatus('档案已在本地生成并下载。', 'ok');
       return true;
     } catch (error) {
@@ -515,7 +555,7 @@
         .order('updated_at', { ascending: false });
       if (error) throw error;
       if (currentRequest !== state.requestId) return;
-      state.items = pendingWithGenderChanges(Array.isArray(data) ? data : []);
+      state.items = pendingWithChanges(Array.isArray(data) ? data : []);
       if (!state.items.some((item) => String(item.id) === String(state.selectedId))) {
         state.selectedId = state.items.length ? state.items[0].id : null;
       }

@@ -21,6 +21,44 @@
     pendingDelete: null
   };
 
+  const FIELD_GROUPS = [
+    {
+      title: '身份信息',
+      fields: [
+        { key: 'gender', label: '性别', placeholder: '男 / 女 / 双' },
+        { key: 'age', label: '年龄', placeholder: '萨维恩人普遍寿命在30-40，但这往往是因为基因工程和环境污染导致的癌变，理论上它们的寿命在80左右，这需要昂贵的投入' },
+        { key: 'race', label: '种族', placeholder: '官设自设皆可' },
+        { key: 'profession', label: '职业', placeholder: '填写你的职业' },
+        { key: 'personality', label: '性格', placeholder: '描述你的性格' }
+      ]
+    },
+    {
+      title: '外貌与经历',
+      fields: [
+        { key: 'appearance', label: '外貌', placeholder: '图文皆可，你需要尽可能的描述并让它能够让人产生足够的印象，包括身高，特点', textarea: true },
+        { key: 'background', label: '背景', placeholder: '展示过去，解释当下', textarea: true }
+      ]
+    },
+    {
+      title: '基因图谱',
+      stats: [
+        { key: 'muscle', label: '肌肉强度', placeholder: '即力量与身体硬度，它同时决定你能用多大力并少量提升抗击打能力，普通人类的数值为5' },
+        { key: 'reflex', label: '神经反射', placeholder: '即反应力，它决定了你能多快感知当前环境并驱使身体做出回应，同时它强化了动态视觉，是所有射手和格斗者不可或缺的基础属性，普通人类的数值为5' },
+        { key: 'neural', label: '神经活性', placeholder: '即神经元的活跃，它在一定程度上反应了你的智力，抽象思维能力，记忆力，同时绝大部分以神经连接需求的设备都对神经活性有一定要求，普通人类的数值为5' },
+        { key: 'tolerance', label: '耐受', placeholder: '反应身体的抽象生命力，抵抗休克，昏厥，负面影响，并在一定程度上代表了意志力，耐受能力越强你约有可能在严重损伤下得到优势判定，普通人类的数值为5' }
+      ]
+    },
+    {
+      title: '能力与装备',
+      fields: [
+        { key: 'genes', label: '基因潜能', placeholder: '任何无法通过学习掌握的能力皆属于此，请描述其效果', textarea: true },
+        { key: 'skills', label: '技能', placeholder: '技能分为1-5级，请描述你的技能与掌握程度', textarea: true },
+        { key: 'gear', label: '武器与装备', placeholder: '填写你的武装', textarea: true },
+        { key: 'extra', label: '补充', placeholder: '任何你找不到想写的东西', textarea: true }
+      ]
+    }
+  ];
+
   function $(id) { return state.root ? state.root.querySelector('#' + id) : document.getElementById(id); }
 
   function escapeHtml(str) {
@@ -82,6 +120,46 @@
     throw new Error('共享 Supabase 客户端未初始化。');
   }
 
+  function formFieldMarkup(field) {
+    const id = field.name ? 'ccNameInput' : 'ccField_' + field.key;
+    const control = field.textarea
+      ? '<textarea class="cc-input cc-textarea" id="' + id + '" data-character-field="' + field.key +
+        '" placeholder="' + escapeHtml(field.placeholder) + '"></textarea>'
+      : '<input class="cc-input" id="' + id + '" type="text" maxlength="' + (field.name ? '40' : '120') +
+        '" autocomplete="off"' + (field.name ? '' : ' data-character-field="' + field.key + '"') +
+        ' placeholder="' + escapeHtml(field.placeholder) + '" />';
+    return '<div class="cc-field' + (field.textarea ? ' cc-field-wide' : '') + '">' +
+      '<label class="cc-label" for="' + id + '">' + escapeHtml(field.label) + '</label>' +
+      control +
+      (field.name ? '<div class="cc-help">保存时会自动生成“人物名称第X次修改”前缀，你可以额外添加后缀命名。</div>' : '') +
+      '</div>';
+  }
+
+  function statsFieldMarkup(field) {
+    const id = 'ccStat_' + field.key;
+    return '<div class="cc-field cc-stat-field">' +
+      '<label class="cc-label" for="' + id + '">' + escapeHtml(field.label) + '</label>' +
+      '<input class="cc-input" id="' + id + '" type="number" value="5" data-stat-field="' + field.key +
+      '" placeholder="' + escapeHtml(field.placeholder) + '" />' +
+      '</div>';
+  }
+
+  function characterFormMarkup() {
+    const sections = FIELD_GROUPS.map((group) => {
+      const fields = group.fields
+        ? '<div class="cc-form-grid">' +
+          (group === FIELD_GROUPS[0] ? formFieldMarkup({ name: true, label: '姓名', placeholder: '中英皆可' }) : '') +
+          group.fields.map(formFieldMarkup).join('') +
+          '</div>'
+        : '<div class="cc-stats-grid">' + group.stats.map(statsFieldMarkup).join('') + '</div>';
+      return '<section class="cc-form-section">' +
+        '<h3 class="cc-form-section-title">' + escapeHtml(group.title) + '</h3>' +
+        fields +
+        '</section>';
+    }).join('');
+    return sections;
+  }
+
   function template() {
     return '' +
       '<div class="cc-root cc-page">' +
@@ -110,15 +188,7 @@
               '<div class="cc-edit-state" id="ccEditState">新建草稿</div>' +
             '</div>' +
             '<form id="ccForm" class="cc-form" novalidate>' +
-              '<div class="cc-field">' +
-                '<label class="cc-label" for="ccNameInput">人物名称</label>' +
-                '<input class="cc-input" id="ccNameInput" type="text" maxlength="40" autocomplete="off" placeholder="输入人物名称（如：灰星勘探者）" />' +
-                '<div class="cc-help">保存时会自动生成“人物名称第X次修改”前缀，你可以额外添加后缀命名。</div>' +
-              '</div>' +
-              '<div class="cc-field">' +
-                '<label class="cc-label" for="ccGenderInput">性别</label>' +
-                '<input class="cc-input" id="ccGenderInput" type="text" maxlength="30" autocomplete="off" placeholder="输入角色性别（可选）" />' +
-              '</div>' +
+              characterFormMarkup() +
               '<div class="cc-actions">' +
                 '<button type="submit" class="cc-btn cc-btn-primary" id="ccSaveBtn">保存草稿</button>' +
                 '<button type="button" class="cc-btn cc-btn-ghost" id="ccResetBtn">清空编辑</button>' +
@@ -228,7 +298,15 @@
     state.els.list = $('ccList');
     state.els.form = $('ccForm');
     state.els.nameInput = $('ccNameInput');
-    state.els.genderInput = $('ccGenderInput');
+    state.els.characterInputs = {};
+    FIELD_GROUPS.forEach((group) => {
+      (group.fields || []).forEach((field) => {
+        state.els.characterInputs[field.key] = $('ccField_' + field.key);
+      });
+      (group.stats || []).forEach((field) => {
+        state.els.characterInputs['stats.' + field.key] = $('ccStat_' + field.key);
+      });
+    });
     state.els.msg = $('ccMsg');
     state.els.newBtn = $('ccNewBtn');
     state.els.saveBtn = $('ccSaveBtn');
@@ -313,7 +391,7 @@
   function clearEditor(message, type) {
     state.selectedId = null;
     if (state.els.nameInput) state.els.nameInput.value = '';
-    if (state.els.genderInput) state.els.genderInput.value = '';
+    populateCharacterFields({});
     renderList();
     renderEditorState();
     if (message !== undefined) setMsg(message, type);
@@ -333,9 +411,7 @@
     if (state.els.nameInput) {
       state.els.nameInput.value = content.personName || extractPersonName(draft.name || '');
     }
-    if (state.els.genderInput) {
-      state.els.genderInput.value = typeof content.gender === 'string' ? content.gender : '';
-    }
+    populateCharacterFields(content);
     renderList();
     renderEditorState();
     setMsg('已加载存档，可修改人物名称后保存为新版本。', 'warn');
@@ -405,7 +481,7 @@
     if (state.els.savePreview) state.els.savePreview.textContent = buildSaveName() || '-';
   }
 
-  function openSaveModal(personName, gender) {
+  function openSaveModal(personName) {
     const version = getNextVersion(personName);
     const prefix = personName + '第' + version + '次修改';
     const selected = state.drafts.find((draft) => String(draft.id) === String(state.selectedId));
@@ -413,8 +489,7 @@
       personName: personName,
       version: version,
       prefix: prefix,
-      gender: gender,
-      baseContent: contentObject(selected && selected.content)
+      content: collectCharacterContent(selected && selected.content, personName, version)
     };
     if (state.els.savePrefix) state.els.savePrefix.textContent = prefix;
     if (state.els.saveSuffixInput) state.els.saveSuffixInput.value = '';
@@ -478,6 +553,7 @@
       if (state.selectedId === draft.id) {
         state.selectedId = null;
         if (state.els.nameInput) state.els.nameInput.value = '';
+        populateCharacterFields({});
       }
       renderList();
       renderEditorState();
@@ -510,9 +586,41 @@
       : {};
   }
 
-  function contentWithGender(content, gender) {
-    const result = contentObject(content);
-    result.gender = typeof gender === 'string' ? gender : '';
+  function populateCharacterFields(content) {
+    const data = contentObject(content);
+    FIELD_GROUPS.forEach((group) => {
+      (group.fields || []).forEach((field) => {
+        const input = state.els.characterInputs && state.els.characterInputs[field.key];
+        if (input) input.value = typeof data[field.key] === 'string' ? data[field.key] : '';
+      });
+      (group.stats || []).forEach((field) => {
+        const input = state.els.characterInputs && state.els.characterInputs['stats.' + field.key];
+        const value = data.stats && data.stats[field.key];
+        if (input) input.value = value == null || value === '' || !Number.isFinite(Number(value)) ? '5' : String(value);
+      });
+    });
+  }
+
+  function collectCharacterContent(baseContent, personName, version) {
+    const result = contentObject(baseContent);
+    result.personName = personName;
+    if (version != null) result.version = version;
+    FIELD_GROUPS.forEach((group) => {
+      (group.fields || []).forEach((field) => {
+        const input = state.els.characterInputs && state.els.characterInputs[field.key];
+        result[field.key] = input ? input.value.trim() : '';
+      });
+      if (group.stats) {
+        const stats = contentObject(result.stats);
+        group.stats.forEach((field) => {
+          const input = state.els.characterInputs && state.els.characterInputs['stats.' + field.key];
+          const raw = input ? input.value.trim() : '';
+          const value = raw === '' ? 5 : Number(raw);
+          stats[field.key] = Number.isFinite(value) ? value : 5;
+        });
+        result.stats = stats;
+      }
+    });
     return result;
   }
 
@@ -597,11 +705,11 @@
 
       const version = count + 1;
       const savedContent = contentObject(draft.content);
-      const currentGender = String(state.selectedId) === String(draft.id) && state.els.genderInput
-        ? state.els.genderInput.value.trim()
-        : (typeof savedContent.gender === 'string' ? savedContent.gender : '');
+      const currentContent = String(state.selectedId) === String(draft.id)
+        ? collectCharacterContent(savedContent, personName, savedContent.version)
+        : savedContent;
       const reviewDraft = Object.assign({}, draft, {
-        content: contentWithGender(savedContent, currentGender)
+        content: currentContent
       });
       openReviewModal(personName, version, reviewDraft, ownerId);
       return true;
@@ -711,8 +819,7 @@
     const personName = (state.els.nameInput && state.els.nameInput.value || '').trim();
     if (!personName) { setMsg('请输入人物名称。', 'error'); if (state.els.nameInput) state.els.nameInput.focus(); return; }
     if (personName.length > 40) { setMsg('人物名称不能超过 40 个字符。', 'error'); return; }
-    const gender = (state.els.genderInput && state.els.genderInput.value || '').trim();
-    openSaveModal(personName, gender);
+    openSaveModal(personName);
   }
 
   async function confirmSave() {
@@ -740,11 +847,7 @@
           owner_id: ownerId,
           name: saveName,
           status: 'draft',
-          content: Object.assign({}, state.pendingSave.baseContent, {
-            personName: state.pendingSave.personName,
-            version: state.pendingSave.version,
-            gender: state.pendingSave.gender
-          }),
+          content: state.pendingSave.content,
           updated_at: now
         }])
         .select('id, owner_id, name, status, content, updated_at')
@@ -853,7 +956,7 @@
       state.drafts = [];
       state.selectedId = null;
       if (!keepUnsavedName && state.els.nameInput) state.els.nameInput.value = '';
-      if (!keepUnsavedName && state.els.genderInput) state.els.genderInput.value = '';
+      if (!keepUnsavedName) populateCharacterFields({});
       renderOwnerMeta();
       renderEditorState();
       closeSaveModal();
@@ -894,7 +997,7 @@
     state.ownerId = '';
     state.selectedId = null;
     if (state.els.nameInput) state.els.nameInput.value = '';
-    if (state.els.genderInput) state.els.genderInput.value = '';
+    populateCharacterFields({});
     renderOwnerMeta();
     renderEditorState();
     closeSaveModal();

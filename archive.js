@@ -84,7 +84,27 @@
   }
 
   function humanizeKey(key) {
-    if (key === 'gender') return '性别';
+    const labels = {
+      personName: '人物名称',
+      gender: '性别',
+      age: '年龄',
+      race: '种族',
+      appearance: '外貌',
+      profession: '职业',
+      personality: '性格',
+      background: '背景',
+      stats: '基因图谱',
+      muscle: '肌肉强度',
+      reflex: '神经反射',
+      neural: '神经活性',
+      tolerance: '耐受',
+      genes: '基因潜能',
+      skills: '技能',
+      gear: '武器与装备',
+      extra: '补充',
+      version: '版本'
+    };
+    if (Object.prototype.hasOwnProperty.call(labels, key)) return labels[key];
     return String(key)
       .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
       .replace(/[_-]+/g, ' ');
