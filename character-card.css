@@ -641,6 +641,8 @@
     -webkit-overflow-scrolling: auto;
   }
   .cc-form {
+    display: flex;
+    flex-direction: column;
     flex: none;
     min-height: 0;
     max-height: none;
@@ -648,6 +650,16 @@
     overscroll-behavior: auto;
     -webkit-overflow-scrolling: auto;
     padding-right: 0;
+  }
+  .cc-actions {
+    order: -1;
+    position: sticky;
+    top: 0;
+    bottom: auto;
+    margin-bottom: 12px;
+    border-top: 0;
+    border-bottom: 1px solid rgba(121,180,198,.2);
+    box-shadow: 0 10px 24px rgba(7,8,10,.55);
   }
 }
 

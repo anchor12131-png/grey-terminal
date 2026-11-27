@@ -108,12 +108,6 @@
     return state.ownerId;
   }
 
-  function isAdminIdentity() {
-    if (!window.GreyAuth || typeof window.GreyAuth.getIdentity !== 'function') return false;
-    const identity = window.GreyAuth.getIdentity();
-    return !!(identity && identity.type === 'user' && identity.isAdmin);
-  }
-
   function ensureSupabase() {
     if (state.sb) return state.sb;
     if (window.GreySupabase) { state.sb = window.GreySupabase; return state.sb; }
@@ -355,7 +349,6 @@
   function renderList() {
     const list = state.els.list;
     if (!list) return;
-    const canDelete = isAdminIdentity();
     if (!state.drafts.length) {
       list.innerHTML = '<div class="cc-list-empty">当前身份暂无草稿。<br>点击“+ 新建角色”创建第一条记录。</div>';
       return;
@@ -375,10 +368,8 @@
           '<div class="cc-item-actions">' +
             '<button type="button" class="cc-item-submit" data-submit-id="' + escapeHtml(draft.id) + '"' +
               (submitting ? ' disabled' : '') + ' aria-label="提交审核">' + (submitting ? '提交中…' : '提交审核') + '</button>' +
-            (canDelete
-              ? '<button type="button" class="cc-item-del" data-del-id="' + escapeHtml(draft.id) + '"' +
-                (submitting ? ' disabled' : '') + ' aria-label="删除草稿">删除</button>'
-              : '') +
+            '<button type="button" class="cc-item-del" data-del-id="' + escapeHtml(draft.id) + '"' +
+              (submitting ? ' disabled' : '') + ' aria-label="删除草稿">删除</button>' +
           '</div>' +
         '</div>';
     }).join('');
@@ -528,11 +519,6 @@
 
   async function confirmDelete() {
     if (!state.pendingDelete || state.saving) return;
-    if (!isAdminIdentity()) {
-      closeDeleteModal();
-      setMsg('当前账号没有删除权限。', 'error');
-      return;
-    }
     const draft = state.pendingDelete;
     const sb = ensureSupabase();
     if (state.els.deleteConfirmBtn) { state.els.deleteConfirmBtn.disabled = true; state.els.deleteConfirmBtn.textContent = '删除中…'; }
