@@ -429,10 +429,14 @@ function showDoc(id) {
 
     const wrap = document.createElement('div');
     wrap.className = 'mod';
-    wrap.innerHTML = renderDoc(doc);
+    wrap.innerHTML = renderDoc(doc, topId);
     stage.appendChild(wrap);
     wrap.classList.add('on');
     wrap.scrollTop = 0;
+    wrap.addEventListener('click', event => {
+      const pageButton = event.target.closest('[data-doc-page]');
+      if (pageButton) showDoc(pageButton.getAttribute('data-doc-page'));
+    });
 
     markupTerms(wrap);
 
@@ -463,6 +467,18 @@ function scrollToSection(targetId) {
   const el = document.getElementById(targetId);
   if (!el) return;
   el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function getPrimaryDocumentPages() {
+  const pages = [];
+  NAV.forEach(group => {
+    (group.items || []).forEach(item => {
+      if (item.id !== 'character_card' && DOCS[item.id]) {
+        pages.push({ id: item.id, title: item.title });
+      }
+    });
+  });
+  return pages;
 }
 
 /* ─────────── 内容块渲染 ─────────── */
@@ -511,8 +527,20 @@ function renderSections(sections) {
   }).join('');
 }
 
-function renderDoc(doc) {
+function renderDoc(doc, docId) {
   const cls = doc.cls || 'int';
+  const pages = getPrimaryDocumentPages();
+  const pageIndex = pages.findIndex(page => page.id === docId);
+  const previous = pageIndex > 0 ? pages[pageIndex - 1] : null;
+  const next = pageIndex >= 0 && pageIndex < pages.length - 1 ? pages[pageIndex + 1] : null;
+  const pageButton = (page, direction, emptyLabel) => {
+    if (!page) {
+      return '<button type="button" class="doc-page-btn is-disabled" disabled>' +
+        '<span>' + direction + '</span><strong>' + emptyLabel + '</strong></button>';
+    }
+    return '<button type="button" class="doc-page-btn" data-doc-page="' + page.id + '">' +
+      '<span>' + direction + '</span><strong>' + page.title + '</strong></button>';
+  };
   return '<div class="doc">' +
     '<div class="doc-head">' +
       '<span class="' + clsBadge(cls) + '">' + clsName(cls) + '</span>' +
@@ -527,6 +555,10 @@ function renderDoc(doc) {
       '<span>' + (doc.rev || '') + ' · ' + (doc.revDate || '') + ' · ' + (doc.revBy || '') + '</span>' +
       '<span>修订原因：' + (doc.revReason || '') + '</span>' +
     '</div>' +
+    '<nav class="doc-page-nav" aria-label="文档翻页">' +
+      pageButton(previous, '上一页', '已是第一页') +
+      pageButton(next, '下一页', '已是最后一页') +
+    '</nav>' +
   '</div>';
 }
 

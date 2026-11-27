@@ -184,6 +184,7 @@ body::after{
 .doc-rev{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);
   font-family:var(--mono);font-size:9px;letter-spacing:.14em;
   color:var(--ink3);display:flex;flex-wrap:wrap;gap:16px}
+.doc-page-nav{display:none}
 
 /* 密级徽章 */
 .cls{font-family:var(--mono);font-size:8.5px;letter-spacing:.18em;padding:3px 8px;
@@ -730,6 +731,51 @@ body::after{
   .doc-section-title{font-size:18px}
   .doc-section-sub{font-size:9px;margin-bottom:14px}
   .doc-section-body{font-size:15px;line-height:1.9}
+  .doc-page-nav{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+    margin-top:24px;
+    padding-top:14px;
+    border-top:1px solid var(--line);
+  }
+  .doc-page-btn{
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:flex-start;
+    gap:7px;
+    min-width:0;
+    min-height:58px;
+    padding:10px 12px;
+    border:1px solid rgba(121,180,198,.28);
+    background:rgba(121,180,198,.045);
+    color:var(--ink2);
+    text-align:left;
+    cursor:pointer;
+  }
+  .doc-page-btn:last-child{align-items:flex-end;text-align:right}
+  .doc-page-btn span{
+    color:var(--acc);
+    font-family:var(--mono);
+    font-size:9px;
+    letter-spacing:.12em;
+  }
+  .doc-page-btn strong{
+    max-width:100%;
+    color:var(--ink);
+    font-size:12px;
+    font-weight:400;
+    line-height:1.5;
+    overflow-wrap:anywhere;
+  }
+  .doc-page-btn:not(:disabled):hover,
+  .doc-page-btn:not(:disabled):focus-visible{
+    border-color:rgba(121,180,198,.6);
+    background:rgba(121,180,198,.1);
+    outline:none;
+  }
+  .doc-page-btn:disabled{opacity:.42;cursor:default}
 
   .doc-meta{grid-template-columns:1fr 1fr}
 
