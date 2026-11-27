@@ -626,7 +626,11 @@
 }
 
 @media (max-width: 768px) {
+  .sb-root {
+    min-height: 0;
+  }
   .sb-shell {
+    min-height: 0;
     grid-template-rows: auto auto;
   }
   .sb-sidebar, .sb-detail {
@@ -634,12 +638,15 @@
   }
   .sb-list {
     flex: none;
+    height: auto;
     max-height: none;
     overflow: visible;
     overscroll-behavior: auto;
   }
   .sb-fields {
+    flex: none;
     min-height: 0;
+    height: auto;
     max-height: none;
     overflow: visible;
     overscroll-behavior: auto;

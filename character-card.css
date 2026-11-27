@@ -628,6 +628,29 @@
   }
 }
 
+@media (max-width: 768px) {
+  .cc-shell {
+    grid-template-rows: auto auto;
+  }
+  .cc-list {
+    flex: none;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    overscroll-behavior: auto;
+    -webkit-overflow-scrolling: auto;
+  }
+  .cc-form {
+    flex: none;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    overscroll-behavior: auto;
+    -webkit-overflow-scrolling: auto;
+    padding-right: 0;
+  }
+}
+
 @media (min-width: 769px) {
   .cc-page {
     padding-bottom: 24px;
