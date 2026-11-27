@@ -66,22 +66,19 @@
   async function checkDiff(currentData) {
     const data = currentData || {};
     const fields = parseContent(data.content);
-    const personName = typeof fields.personName === 'string' && fields.personName.trim()
-      ? fields.personName.trim()
-      : String(data.name || '').trim();
+    const personName = typeof fields.personName === 'string' ? fields.personName.trim() : '';
     if (!personName) return {};
-    if (!data.ownerId) throw new Error('无法确认角色所属账号，不能检查历史版本。');
     if (!window.GreySupabase) throw new Error('Supabase 客户端未初始化，不能检查历史版本。');
 
-    const { data: previous, error } = await window.GreySupabase
+    let query = window.GreySupabase
       .from('characters')
       .select('content')
-      .eq('owner_id', data.ownerId)
       .eq('content->>personName', personName)
       .in('status', ['pending', 'approved'])
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order('updated_at', { ascending: false });
+    if (data.id != null) query = query.neq('id', data.id);
+    if (data.updated_at) query = query.lt('updated_at', data.updated_at);
+    const { data: previous, error } = await query.limit(1).maybeSingle();
     if (error) throw error;
     if (!previous) return {};
 

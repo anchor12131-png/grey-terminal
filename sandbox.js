@@ -15,6 +15,7 @@
     deleting: false,
     approving: false,
     approvingId: null,
+    exportingId: null,
     authListenerBound: false
   };
 
@@ -60,12 +61,7 @@
 
   function characterKey(record) {
     const content = contentObject(record.content);
-    const contentName = typeof content.personName === 'string' ? content.personName.trim() : '';
-    const fallbackName = String(record.name || '')
-      .replace(/^待审核稿件-/, '')
-      .replace(/-第\d+次提交(?:-.+)?$/, '')
-      .trim();
-    return contentName || fallbackName;
+    return typeof content.personName === 'string' ? content.personName.trim() : '';
   }
 
   function timestamp(record) {
@@ -283,16 +279,23 @@
               '<span class="sb-badge sb-badge-pending">待审核</span>' +
             '</span>' +
           '</button>' +
+          '<div class="sb-item-actions">' +
+              '<button type="button" class="sb-export-btn" data-sb-export="image" data-sb-export-id="' + escapeHtml(item.id) + '"' +
+                (String(state.exportingId) === String(item.id) ? ' disabled' : '') +
+                ' aria-label="下载图片档案" title="下载图片档案">下载图片档案</button>' +
+              '<button type="button" class="sb-export-btn" data-sb-export="word" data-sb-export-id="' + escapeHtml(item.id) + '"' +
+                (String(state.exportingId) === String(item.id) ? ' disabled' : '') +
+                ' aria-label="下载 Word 档案" title="下载 Word 档案">下载 Word 档案</button>' +
           (showAdminActions
-            ? '<div class="sb-admin-actions">' +
+            ? '' +
                 '<button type="button" class="sb-approve-btn" data-sb-approve-id="' + escapeHtml(item.id) + '"' +
                   (state.approving ? ' disabled' : '') +
                   ' aria-label="审核通过" title="审核通过">' +
                   (String(state.approvingId) === String(item.id) ? '审核中…' : '✓ 过审') +
                 '</button>' +
-                '<button type="button" class="sb-delete-btn" data-sb-delete-id="' + escapeHtml(item.id) + '" aria-label="删除稿件" title="删除稿件">删除</button>' +
-              '</div>'
+                '<button type="button" class="sb-delete-btn" data-sb-delete-id="' + escapeHtml(item.id) + '" aria-label="删除稿件" title="删除稿件">删除</button>'
             : '') +
+          '</div>' +
         '</div>';
     }).join('');
     renderDetail();
@@ -317,6 +320,47 @@
     if (!messageEl) return;
     messageEl.textContent = message || '';
     messageEl.className = 'sb-delete-message' + (kind ? ' is-' + kind : '');
+  }
+
+  async function exportCharacter(id, format) {
+    const item = state.items.find((entry) => String(entry.id) === String(id));
+    if (!item || state.exportingId) return false;
+    const exporter = window.GreyArchiveExport;
+    const method = format === 'word' ? 'exportAsWord' : 'exportAsImage';
+    if (!exporter || typeof exporter[method] !== 'function') {
+      setStatus('本地导出模块未加载，请刷新页面后重试。', 'error');
+      return false;
+    }
+
+    const content = contentObject(item.content);
+    const characterName = typeof content.personName === 'string' && content.personName.trim()
+      ? content.personName.trim()
+      : item.name || '未命名角色';
+    const characterData = {
+      id: item.id,
+      updated_at: item.updated_at,
+      name: characterName,
+      displayName: item.name || characterName,
+      status: '待审核',
+      generatedAt: new Date().toISOString(),
+      content: content
+    };
+
+    state.exportingId = String(item.id);
+    renderItems();
+    setStatus('正在本地生成档案；不会上传文件。');
+    try {
+      await exporter[method](characterData);
+      setStatus('档案已在本地生成并下载。', 'ok');
+      return true;
+    } catch (error) {
+      console.error('[SandboxManager] exportCharacter error:', error);
+      setStatus('导出失败：' + (error && error.message ? error.message : '未知错误'), 'error');
+      return false;
+    } finally {
+      state.exportingId = null;
+      renderItems();
+    }
   }
 
   function openDeleteModal(id) {
@@ -500,6 +544,14 @@
           refreshList();
           return;
         }
+        const exportButton = event.target.closest('[data-sb-export-id]');
+        if (exportButton) {
+          exportCharacter(
+            exportButton.getAttribute('data-sb-export-id'),
+            exportButton.getAttribute('data-sb-export')
+          );
+          return;
+        }
         if (event.target.closest('[data-sb-close-delete], [data-sb-cancel-delete]')) {
           closeDeleteModal();
           return;
@@ -529,6 +581,7 @@
     mount: mount,
     refreshList: refreshList,
     deleteCharacter: deleteCharacter,
-    approveCharacter: approveCharacter
+    approveCharacter: approveCharacter,
+    exportCharacter: exportCharacter
   };
 })();

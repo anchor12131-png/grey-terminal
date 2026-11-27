@@ -188,8 +188,6 @@
             '</div>' +
             '<div class="cc-msg" id="ccReviewMsg" aria-live="polite"></div>' +
             '<div class="cc-actions">' +
-              '<button type="button" class="cc-btn cc-btn-export" id="ccReviewExportWordBtn">下载 Word 档案</button>' +
-              '<button type="button" class="cc-btn cc-btn-export" id="ccReviewExportImageBtn">下载图片档案</button>' +
               '<button type="button" class="cc-btn cc-btn-primary cc-review-submit-btn" id="ccReviewConfirmBtn">确认提交</button>' +
               '<button type="button" class="cc-btn cc-btn-ghost" id="ccReviewCancelBtn">取消</button>' +
             '</div>' +
@@ -253,8 +251,6 @@
     state.els.reviewPreview = $('ccReviewPreview');
     state.els.reviewMsg = $('ccReviewMsg');
     state.els.reviewConfirmBtn = $('ccReviewConfirmBtn');
-    state.els.reviewExportWordBtn = $('ccReviewExportWordBtn');
-    state.els.reviewExportImageBtn = $('ccReviewExportImageBtn');
     state.els.reviewCancelBtn = $('ccReviewCancelBtn');
     state.els.reviewCloseBtn = $('ccReviewCloseBtn');
     state.els.deleteModal = $('ccDeleteModal');
@@ -528,59 +524,6 @@
 
   function updateReviewPreview() {
     if (state.els.reviewPreview) state.els.reviewPreview.textContent = buildReviewName() || '-';
-  }
-
-  async function exportReviewArchive(format) {
-    if (!state.pendingReview) return;
-    const pending = state.pendingReview;
-    const button = format === 'word'
-      ? state.els.reviewExportWordBtn
-      : state.els.reviewExportImageBtn;
-    const exporter = window.GreyArchiveExport;
-    const method = format === 'word' ? 'exportAsWord' : 'exportAsImage';
-    if (!exporter || typeof exporter[method] !== 'function') {
-      if (state.els.reviewMsg) {
-        state.els.reviewMsg.textContent = '本地导出模块未加载，请刷新页面后重试。';
-        state.els.reviewMsg.className = 'cc-msg is-error';
-      }
-      return;
-    }
-
-    const characterData = {
-      ownerId: pending.ownerId,
-      name: pending.personName,
-      displayName: buildReviewName(),
-      status: '待提交审核',
-      generatedAt: new Date().toISOString(),
-      content: pending.draft.content
-    };
-    const originalText = button ? button.textContent : '';
-    if (button) {
-      button.disabled = true;
-      button.textContent = '本地生成中…';
-    }
-    if (state.els.reviewMsg) {
-      state.els.reviewMsg.textContent = '正在查询历史版本并本地生成档案；文件不会上传。';
-      state.els.reviewMsg.className = 'cc-msg';
-    }
-    try {
-      await exporter[method](characterData);
-      if (state.els.reviewMsg) {
-        state.els.reviewMsg.textContent = '档案已在本地生成并下载，可继续提交审核。';
-        state.els.reviewMsg.className = 'cc-msg is-ok';
-      }
-    } catch (error) {
-      console.error('[CharacterManager] local archive export failed:', error);
-      if (state.els.reviewMsg) {
-        state.els.reviewMsg.textContent = '本地导出失败：' + (error && error.message ? error.message : '未知错误');
-        state.els.reviewMsg.className = 'cc-msg is-error';
-      }
-    } finally {
-      if (button) {
-        button.disabled = false;
-        button.textContent = originalText;
-      }
-    }
   }
 
   function setReviewBusy(isBusy) {
@@ -872,12 +815,6 @@
       });
     }
     if (state.els.reviewSuffixInput) state.els.reviewSuffixInput.addEventListener('input', updateReviewPreview);
-    if (state.els.reviewExportWordBtn) {
-      state.els.reviewExportWordBtn.addEventListener('click', () => exportReviewArchive('word'));
-    }
-    if (state.els.reviewExportImageBtn) {
-      state.els.reviewExportImageBtn.addEventListener('click', () => exportReviewArchive('image'));
-    }
     if (state.els.reviewConfirmBtn) state.els.reviewConfirmBtn.addEventListener('click', confirmSubmitForReview);
     if (state.els.reviewCancelBtn) state.els.reviewCancelBtn.addEventListener('click', () => closeReviewModal());
     if (state.els.reviewCloseBtn) state.els.reviewCloseBtn.addEventListener('click', () => closeReviewModal());
