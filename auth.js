@@ -320,6 +320,7 @@
       +   '<form id="authPanelRegister" class="auth-panel" role="tabpanel" aria-labelledby="authTabRegister" hidden novalidate>'
       +     '<div class="auth-field"><label for="authRegisterUsername">账号名</label>'
       +     '<input class="auth-input" id="authRegisterUsername" autocomplete="username" maxlength="32" placeholder="设置账号名（唯一）" /></div>'
+      +     '<p class="auth-hint">账号名称建议直接使用中文，请勿使用特殊符号。</p>'
       +     '<div class="auth-field"><label for="authRegisterPassword">密码</label>'
       +     '<input class="auth-input" id="authRegisterPassword" type="password" autocomplete="new-password" minlength="6" maxlength="64" placeholder="设置密码（至少 6 位）" /></div>'
       +     '<div class="auth-field"><label for="authRegisterPassword2">确认密码</label>'
