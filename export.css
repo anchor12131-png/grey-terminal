@@ -1,0 +1,139 @@
+.export-card-mock {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  z-index: -1;
+  width: 820px;
+  padding: 22px;
+  pointer-events: none;
+}
+.export-card-frame {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 34px 38px;
+  border: 1px solid rgba(121,180,198,.65);
+  outline: 1px solid rgba(121,180,198,.18);
+  outline-offset: 7px;
+  background:
+    radial-gradient(ellipse at 92% 5%, rgba(121,180,198,.13), transparent 34%),
+    linear-gradient(145deg, #0d1318, #080a0c 68%);
+  color: #d7e0e4;
+  font-family: "Inter", "Segoe UI", "Microsoft YaHei", sans-serif;
+  box-shadow: 0 18px 60px rgba(0,0,0,.4);
+}
+.export-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.export-card-org {
+  color: #dfe9ed;
+  font-size: 15px;
+  letter-spacing: .14em;
+}
+.export-card-en {
+  margin-top: 6px;
+  color: #71838b;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 8px;
+  letter-spacing: .17em;
+}
+.export-card-classification {
+  flex: none;
+  padding: 7px 10px;
+  border: 1px solid rgba(194,160,106,.55);
+  color: #d3b77f;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: .1em;
+}
+.export-card-rule {
+  height: 1px;
+  margin: 24px 0;
+  background: linear-gradient(90deg, rgba(121,180,198,.78), rgba(121,180,198,.08));
+}
+.export-card-name {
+  margin: 0;
+  color: #edf4f6;
+  font-size: 31px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: .08em;
+  overflow-wrap: anywhere;
+}
+.export-card-generated {
+  margin-top: 12px;
+  color: #7e8d93;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: .06em;
+}
+.export-card-content { margin-top: 28px; }
+.export-card-content h2 {
+  margin: 0 0 14px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgba(150,175,185,.2);
+  color: #a9cbd5;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: .14em;
+}
+.export-card-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.export-card-field {
+  padding: 12px 14px;
+  border: 1px solid rgba(150,175,185,.13);
+  background: rgba(255,255,255,.018);
+  color: #c5d0d4;
+  font-size: 12px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.export-card-label, .export-nested-label {
+  margin-bottom: 5px;
+  color: #8299a1;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 8px;
+  letter-spacing: .12em;
+}
+.export-value-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-left: 1px solid rgba(121,180,198,.35);
+  background: rgba(0,0,0,.16);
+}
+.export-nested-field { min-width: 0; }
+.export-nested-label { margin-bottom: 2px; color: #70858d; }
+.export-value-list { margin: 0; padding-left: 20px; }
+.export-value-list li { padding: 2px 0; }
+.export-value-list li::marker { color: #79b4c6; }
+.export-card-foot {
+  margin-top: 26px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(150,175,185,.13);
+  color: #56666d;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 7px;
+  letter-spacing: .15em;
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .export-card-mock {
+    box-sizing: border-box;
+    width: 600px;
+    padding: 18px;
+  }
+  .export-card-frame {
+    padding: 28px 30px;
+  }
+  .export-card-field {
+    padding: 10px 12px;
+  }
+}

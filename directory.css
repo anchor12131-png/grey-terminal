@@ -82,12 +82,28 @@
 
 /* mobile: stacked layout with inline tree in browser pane */
 .dir-mobile-tree{flex:1;min-height:0;overflow-y:auto;padding:12px 14px}
-.dir-node-mobile .dir-node-row{min-height:38px;padding:2px 0}
-.dir-node-mobile .dir-node-link{font-size:13px;padding:7px 0}
+.dir-node-mobile .dir-node-row{min-height:44px;padding:3px 0}
+.dir-mobile-toggle,.dir-mobile-label{flex:1;min-width:0;color:var(--ink);
+  font:13px/1.5 var(--sans);text-align:left;overflow-wrap:anywhere}
+.dir-mobile-toggle{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  min-height:44px;padding:7px 9px;border:1px solid rgba(121,180,198,.16);
+  background:rgba(121,180,198,.035);cursor:pointer}
+.dir-mobile-toggle::after{content:'＋';flex:none;color:var(--acc);
+  font:12px/1 var(--mono);opacity:.8}
+.dir-mobile-toggle[aria-expanded="true"]{border-color:rgba(121,180,198,.42);
+  background:rgba(121,180,198,.09);color:#e8ecef}
+.dir-mobile-toggle[aria-expanded="true"]::after{content:'－'}
+.dir-mobile-toggle:focus-visible,.dir-mobile-jump:focus-visible{
+  outline:1px solid var(--acc);outline-offset:1px}
+.dir-mobile-label{padding:7px 9px}
+.dir-mobile-jump{flex:none;min-width:58px;min-height:44px;padding:7px 9px;
+  border:1px solid rgba(121,180,198,.32);background:rgba(121,180,198,.07);
+  color:var(--acc);font:10px/1.4 var(--mono);letter-spacing:.08em;cursor:pointer}
+.dir-mobile-jump:active{background:rgba(121,180,198,.16)}
 .dir-marker{width:12px;flex:none;color:var(--acc);font-family:var(--mono);
   font-size:10px;opacity:.72}
 .dir-mobile-children{margin-left:10px;padding-left:10px;border-left:1px solid var(--line2)}
-.dir-node-mobile.has-children>.dir-node-row .dir-node-link{color:var(--ink)}
+.dir-mobile-children[hidden]{display:none!important}
 .dir-mobile-tree .dir-static-entry{padding:8px 0 8px 22px;font-size:12px}
 .dir-mobile-tree .dir-static-link{color:var(--ink2)}
 

@@ -13,6 +13,8 @@
     selectedId: null,
     pendingDeleteId: null,
     deleting: false,
+    approving: false,
+    approvingId: null,
     authListenerBound: false
   };
 
@@ -48,6 +50,52 @@
     }).format(date);
   }
 
+  function contentObject(content) {
+    let value = content;
+    if (typeof value === 'string') {
+      try { value = JSON.parse(value); } catch (_) { value = null; }
+    }
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  }
+
+  function characterKey(record) {
+    const content = contentObject(record.content);
+    const contentName = typeof content.personName === 'string' ? content.personName.trim() : '';
+    const fallbackName = String(record.name || '')
+      .replace(/^待审核稿件-/, '')
+      .replace(/-第\d+次提交(?:-.+)?$/, '')
+      .trim();
+    return contentName || fallbackName;
+  }
+
+  function timestamp(record) {
+    const value = Date.parse(record.updated_at || '');
+    return Number.isNaN(value) ? 0 : value;
+  }
+
+  function comparableGender(value) {
+    return typeof value === 'string' && !value.trim() ? null : value;
+  }
+
+  function pendingWithGenderChanges(records) {
+    const ordered = records.slice().sort((a, b) => timestamp(b) - timestamp(a));
+    return ordered.reduce((pending, record, index) => {
+      if (record.status !== 'pending') return pending;
+      const key = characterKey(record);
+      const previous = key && ordered.slice(index + 1).find((candidate) =>
+        (candidate.status === 'pending' || candidate.status === 'approved') &&
+        characterKey(candidate) === key
+      );
+      const currentContent = contentObject(record.content);
+      const previousContent = previous ? contentObject(previous.content) : null;
+      const genderChanged = !!previous &&
+        JSON.stringify(comparableGender(previousContent.gender)) !==
+          JSON.stringify(comparableGender(currentContent.gender));
+      pending.push(Object.assign({}, record, { genderChanged: genderChanged }));
+      return pending;
+    }, []);
+  }
+
   function isAdmin() {
     if (!window.GreyAuth || typeof window.GreyAuth.getIdentity !== 'function') return false;
     const identity = window.GreyAuth.getIdentity();
@@ -62,7 +110,7 @@
           '<div>' +
             '<div class="sb-kicker">GREYSTAR / PUBLIC SANDBOX</div>' +
             '<h2 class="sb-title">公共沙盒</h2>' +
-            '<p class="sb-desc">已提交审核与通过审核的角色档案。提交时间以稿件最近更新时间记录。</p>' +
+            '<p class="sb-desc">公开角色稿件的待审核区。通过审核后将正式归入角色档案库。</p>' +
           '</div>' +
           '<button type="button" class="sb-reload" data-sb-reload>重新读取</button>' +
         '</header>' +
@@ -98,6 +146,7 @@
   function contentLabel(key) {
     const labels = {
       personName: '人物名称',
+      gender: '性别',
       version: '版本',
       background: '背景',
       appearance: '外貌',
@@ -117,12 +166,18 @@
     return String(value);
   }
 
-  function createContentField(key, value) {
+  function createContentField(key, value, genderChanged) {
     const field = document.createElement('div');
     field.className = 'sb-field';
     const label = document.createElement('div');
     label.className = 'sb-field-label';
     label.textContent = contentLabel(key);
+    if (genderChanged) {
+      const badge = document.createElement('span');
+      badge.className = 'sb-field-updated';
+      badge.textContent = '有改动';
+      label.appendChild(badge);
+    }
     field.appendChild(label);
 
     const valueBox = document.createElement('div');
@@ -167,9 +222,6 @@
       detail.innerHTML = '<div class="sb-detail-empty">从左侧选择一份公共稿件以查看内容。</div>';
       return;
     }
-    const pending = item.status === 'pending';
-    const label = pending ? '待审核' : '已通过';
-    const badge = pending ? 'sb-badge sb-badge-pending' : 'sb-badge sb-badge-approved';
     detail.innerHTML = '' +
       '<header class="sb-detail-head">' +
         '<div>' +
@@ -177,7 +229,7 @@
           '<h3 class="sb-detail-title">' + escapeHtml(item.name || '（未命名）') + '</h3>' +
         '</div>' +
         '<div class="sb-detail-meta">' +
-          '<span class="' + badge + '">' + label + '</span>' +
+          '<span class="sb-badge sb-badge-pending">待审核</span>' +
           '<time class="sb-time" datetime="' + escapeHtml(item.updated_at || '') + '">提交时间 · ' + escapeHtml(formatTime(item.updated_at)) + '</time>' +
         '</div>' +
       '</header>' +
@@ -193,7 +245,13 @@
     if (content && typeof content === 'object' && !Array.isArray(content)) {
       const keys = Object.keys(content);
       if (!keys.length) fields.textContent = '暂无可展示内容。';
-      keys.forEach((key) => fields.appendChild(createContentField(key, content[key])));
+      keys.forEach((key) => {
+        fields.appendChild(createContentField(
+          key,
+          content[key],
+          key === 'gender' && item.genderChanged
+        ));
+      });
     } else {
       fields.appendChild(createContentField('内容', content));
     }
@@ -202,7 +260,7 @@
   function renderItems() {
     const list = state.root && state.root.querySelector('[data-sb-list]');
     if (!list) return;
-    const showDelete = isAdmin();
+    const showAdminActions = isAdmin();
     const counts = state.root.querySelectorAll('[data-sb-count]');
     counts.forEach((element, index) => {
       element.textContent = index === 0 ? String(state.items.length) : state.items.length + ' 条记录';
@@ -214,9 +272,6 @@
       return;
     }
     list.innerHTML = state.items.map((item) => {
-      const pending = item.status === 'pending';
-      const label = pending ? '待审核' : '已通过';
-      const className = pending ? 'sb-badge sb-badge-pending' : 'sb-badge sb-badge-approved';
       const active = String(item.id) === String(state.selectedId) ? ' is-active' : '';
       return '' +
         '<div class="sb-item-row">' +
@@ -225,11 +280,18 @@
             '<span class="sb-item-name">' + escapeHtml(item.name || '（未命名）') + '</span>' +
             '<span class="sb-item-meta">' +
               '<time class="sb-time" datetime="' + escapeHtml(item.updated_at || '') + '">' + escapeHtml(formatTime(item.updated_at)) + '</time>' +
-              '<span class="' + className + '">' + label + '</span>' +
+              '<span class="sb-badge sb-badge-pending">待审核</span>' +
             '</span>' +
           '</button>' +
-          (showDelete
-            ? '<button type="button" class="sb-delete-btn" data-sb-delete-id="' + escapeHtml(item.id) + '" aria-label="删除稿件" title="删除稿件">删除</button>'
+          (showAdminActions
+            ? '<div class="sb-admin-actions">' +
+                '<button type="button" class="sb-approve-btn" data-sb-approve-id="' + escapeHtml(item.id) + '"' +
+                  (state.approving ? ' disabled' : '') +
+                  ' aria-label="审核通过" title="审核通过">' +
+                  (String(state.approvingId) === String(item.id) ? '审核中…' : '✓ 过审') +
+                '</button>' +
+                '<button type="button" class="sb-delete-btn" data-sb-delete-id="' + escapeHtml(item.id) + '" aria-label="删除稿件" title="删除稿件">删除</button>' +
+              '</div>'
             : '') +
         '</div>';
     }).join('');
@@ -311,7 +373,7 @@
         .from('characters')
         .delete()
         .eq('id', item.id)
-        .in('status', ['pending', 'approved'])
+        .eq('status', 'pending')
         .select('id')
         .maybeSingle();
       if (error) throw error;
@@ -337,6 +399,53 @@
     }
   }
 
+  async function approveCharacter(id) {
+    if (!isAdmin()) {
+      setStatus('当前账号没有审核权限。', 'error');
+      return false;
+    }
+    const item = state.items.find((entry) => String(entry.id) === String(id));
+    if (!item || item.status !== 'pending' || state.approving) return false;
+
+    state.approving = true;
+    state.approvingId = String(item.id);
+    renderItems();
+    setStatus('正在将稿件正式归档…');
+    try {
+      const { data, error } = await getClient()
+        .from('characters')
+        .update({
+          status: 'approved',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', item.id)
+        .eq('status', 'pending')
+        .select('id')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('稿件未更新；记录可能已审核或数据库策略拒绝了操作。');
+
+      state.items = state.items.filter((entry) => String(entry.id) !== String(item.id));
+      if (String(state.selectedId) === String(item.id)) {
+        state.selectedId = state.items.length ? state.items[0].id : null;
+      }
+      renderItems();
+      setStatus('档案已正式入库。', 'ok');
+      document.dispatchEvent(new CustomEvent('greystar:character-approved', {
+        detail: { id: item.id }
+      }));
+      return true;
+    } catch (error) {
+      console.error('[SandboxManager] approveCharacter error:', error);
+      setStatus('过审失败：' + (error && error.message ? error.message : '未知错误'), 'error');
+      return false;
+    } finally {
+      state.approving = false;
+      state.approvingId = null;
+      renderItems();
+    }
+  }
+
   function bindGlobalEvents() {
     if (state.authListenerBound) return;
     state.authListenerBound = true;
@@ -353,7 +462,7 @@
   async function refreshList() {
     if (!state.root) return;
     const currentRequest = ++state.requestId;
-    setStatus('正在读取公共稿件…');
+    setStatus('正在读取待审核稿件…');
     try {
       const { data, error } = await getClient()
         .from('characters')
@@ -362,12 +471,12 @@
         .order('updated_at', { ascending: false });
       if (error) throw error;
       if (currentRequest !== state.requestId) return;
-      state.items = Array.isArray(data) ? data : [];
+      state.items = pendingWithGenderChanges(Array.isArray(data) ? data : []);
       if (!state.items.some((item) => String(item.id) === String(state.selectedId))) {
         state.selectedId = state.items.length ? state.items[0].id : null;
       }
       renderItems();
-      setStatus(state.items.length ? '公共稿件已更新。' : '暂无待审核或已通过的稿件。', 'ok');
+      setStatus(state.items.length ? '待审核稿件已更新。' : '暂无待审核稿件。', 'ok');
     } catch (error) {
       if (currentRequest !== state.requestId) return;
       console.error('[SandboxManager] refreshList error:', error);
@@ -399,6 +508,11 @@
           if (state.pendingDeleteId) deleteCharacter(state.pendingDeleteId);
           return;
         }
+        const approveButton = event.target.closest('[data-sb-approve-id]');
+        if (approveButton) {
+          approveCharacter(approveButton.getAttribute('data-sb-approve-id'));
+          return;
+        }
         const deleteButton = event.target.closest('[data-sb-delete-id]');
         if (deleteButton) {
           openDeleteModal(deleteButton.getAttribute('data-sb-delete-id'));
@@ -414,6 +528,7 @@
   window.SandboxManager = {
     mount: mount,
     refreshList: refreshList,
-    deleteCharacter: deleteCharacter
+    deleteCharacter: deleteCharacter,
+    approveCharacter: approveCharacter
   };
 })();

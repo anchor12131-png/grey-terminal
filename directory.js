@@ -15,6 +15,8 @@
     return Array.isArray(item.sub) && item.sub.length > 0;
   }
 
+  let mobileNodeSequence = 0;
+
   function renderSubheading(entry) {
     const isExternal = entry && typeof entry === 'object' && (entry.href || entry.url);
     if (isExternal) {
@@ -50,8 +52,25 @@
       marker.setAttribute('aria-hidden', 'true');
       row.appendChild(marker);
     }
-    const link = createButton(item.title, 'dir-node-link', item.id);
-    row.appendChild(link);
+    if (hasChildren(item)) {
+      const childrenId = 'dir-mobile-children-' + (++mobileNodeSequence);
+      const toggle = createButton(item.title, 'dir-mobile-toggle');
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-controls', childrenId);
+      row.appendChild(toggle);
+      const jump = createButton('跳转', 'dir-mobile-jump', item.id);
+      jump.setAttribute('aria-label', '跳转到' + item.title + '内容');
+      row.appendChild(jump);
+      node.dataset.childrenId = childrenId;
+    } else {
+      const label = document.createElement('span');
+      label.className = 'dir-mobile-label';
+      label.textContent = item.title;
+      row.appendChild(label);
+      const jump = createButton('跳转', 'dir-mobile-jump', item.id);
+      jump.setAttribute('aria-label', '跳转到' + item.title + '内容');
+      row.appendChild(jump);
+    }
     if (item.badge || item.note) {
       const badge = document.createElement('span');
       badge.className = 'dir-badge';
@@ -63,6 +82,8 @@
     if (hasChildren(item)) {
       const children = document.createElement('div');
       children.className = 'dir-mobile-children';
+      children.id = node.dataset.childrenId;
+      children.hidden = true;
       item.sub.forEach(child => children.appendChild(renderMobileNode(child, depth + 1)));
       node.appendChild(children);
     }
@@ -78,6 +99,7 @@
 
     const tree = document.createElement('div');
     tree.className = 'dir-mobile-tree';
+    mobileNodeSequence = 0;
     (group.items || []).forEach(item => tree.appendChild(renderMobileNode(item, 0)));
     (group.subheadings || []).forEach(entry => {
       tree.appendChild(renderSubheading(entry));
@@ -325,6 +347,17 @@
       });
 
       page.addEventListener('click', event => {
+        const toggle = event.target.closest('.dir-mobile-toggle');
+        if (toggle) {
+          const node = toggle.closest('.dir-node-mobile');
+          const children = node && node.querySelector(':scope > .dir-mobile-children');
+          if (!children) return;
+          const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+          toggle.setAttribute('aria-expanded', String(expanded));
+          children.hidden = !expanded;
+          node.classList.toggle('is-expanded', expanded);
+          return;
+        }
         const button = event.target.closest('[data-document-id]');
         if (!button) return;
         options.openDocument(button.dataset.documentId);

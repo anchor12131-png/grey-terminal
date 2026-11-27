@@ -761,3 +761,25 @@ body::after{
   .doc-section-title{font-size:17px}
   .doc-section-body{font-size:14.5px}
 }
+
+@media (max-width: 768px){
+  html, body { overflow-x: hidden; }
+  #app {
+    width: 100%;
+    max-width: 100vw;
+    overflow: hidden;
+    grid-template-rows: 46px minmax(0, 1fr);
+  }
+  .bar-t { min-width: 0; gap: 7px; padding: 0 10px; }
+  .bar-l { flex: 0 1 auto; min-width: 0; gap: 7px; }
+  .menu-toggle { width: 44px; height: 44px; }
+  .stage, .mod, .main { min-width: 0; max-width: 100%; }
+  button { min-height: 44px; }
+  input, textarea, select { font-size: 16px; }
+  .nav-mask { touch-action: manipulation; }
+}
+
+@media (max-width: 480px){
+  .bar-l .org { display: none; }
+  .bar-l { flex: 0 0 auto; }
+}

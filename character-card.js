@@ -93,6 +93,7 @@
         '<nav class="sb-tabs" aria-label="角色档案视图">' +
           '<button type="button" class="sb-tab is-active" id="sbDraftTab" data-sb-view="drafts" aria-pressed="true">我的草稿 <span>MY DRAFTS</span></button>' +
           '<button type="button" class="sb-tab" id="sbPublicTab" data-sb-view="sandbox" aria-pressed="false">公共沙盒 <span>PUBLIC SANDBOX</span></button>' +
+          '<button type="button" class="sb-tab" id="sbArchiveTab" data-sb-view="archive" aria-pressed="false">角色档案 <span>CHARACTER ARCHIVE</span></button>' +
         '</nav>' +
         '<div class="cc-shell" id="ccDraftView">' +
           '<aside class="cc-sidebar">' +
@@ -114,6 +115,10 @@
                 '<input class="cc-input" id="ccNameInput" type="text" maxlength="40" autocomplete="off" placeholder="输入人物名称（如：灰星勘探者）" />' +
                 '<div class="cc-help">保存时会自动生成“人物名称第X次修改”前缀，你可以额外添加后缀命名。</div>' +
               '</div>' +
+              '<div class="cc-field">' +
+                '<label class="cc-label" for="ccGenderInput">性别</label>' +
+                '<input class="cc-input" id="ccGenderInput" type="text" maxlength="30" autocomplete="off" placeholder="输入角色性别（可选）" />' +
+              '</div>' +
               '<div class="cc-actions">' +
                 '<button type="submit" class="cc-btn cc-btn-primary" id="ccSaveBtn">保存草稿</button>' +
                 '<button type="button" class="cc-btn cc-btn-ghost" id="ccResetBtn">清空编辑</button>' +
@@ -127,6 +132,7 @@
           '</main>' +
         '</div>' +
         '<section class="sb-view" id="sbView" hidden aria-label="公共沙盒"></section>' +
+        '<section class="ar-view" id="arView" hidden aria-label="角色档案"></section>' +
         '<div class="cc-save-modal" id="ccSaveModal" hidden aria-hidden="true">' +
           '<div class="cc-save-backdrop" data-cc-save-close="1"></div>' +
           '<div class="cc-save-panel" role="dialog" aria-modal="true" aria-labelledby="ccSaveTitle">' +
@@ -182,6 +188,8 @@
             '</div>' +
             '<div class="cc-msg" id="ccReviewMsg" aria-live="polite"></div>' +
             '<div class="cc-actions">' +
+              '<button type="button" class="cc-btn cc-btn-export" id="ccReviewExportWordBtn">下载 Word 档案</button>' +
+              '<button type="button" class="cc-btn cc-btn-export" id="ccReviewExportImageBtn">下载图片档案</button>' +
               '<button type="button" class="cc-btn cc-btn-primary cc-review-submit-btn" id="ccReviewConfirmBtn">确认提交</button>' +
               '<button type="button" class="cc-btn cc-btn-ghost" id="ccReviewCancelBtn">取消</button>' +
             '</div>' +
@@ -217,9 +225,12 @@
     state.els.sandboxView = $('sbView');
     state.els.draftTab = $('sbDraftTab');
     state.els.publicTab = $('sbPublicTab');
+    state.els.archiveTab = $('sbArchiveTab');
+    state.els.archiveView = $('arView');
     state.els.list = $('ccList');
     state.els.form = $('ccForm');
     state.els.nameInput = $('ccNameInput');
+    state.els.genderInput = $('ccGenderInput');
     state.els.msg = $('ccMsg');
     state.els.newBtn = $('ccNewBtn');
     state.els.saveBtn = $('ccSaveBtn');
@@ -242,6 +253,8 @@
     state.els.reviewPreview = $('ccReviewPreview');
     state.els.reviewMsg = $('ccReviewMsg');
     state.els.reviewConfirmBtn = $('ccReviewConfirmBtn');
+    state.els.reviewExportWordBtn = $('ccReviewExportWordBtn');
+    state.els.reviewExportImageBtn = $('ccReviewExportImageBtn');
     state.els.reviewCancelBtn = $('ccReviewCancelBtn');
     state.els.reviewCloseBtn = $('ccReviewCloseBtn');
     state.els.deleteModal = $('ccDeleteModal');
@@ -304,6 +317,7 @@
   function clearEditor(message, type) {
     state.selectedId = null;
     if (state.els.nameInput) state.els.nameInput.value = '';
+    if (state.els.genderInput) state.els.genderInput.value = '';
     renderList();
     renderEditorState();
     if (message !== undefined) setMsg(message, type);
@@ -319,7 +333,13 @@
     const draft = state.drafts.find((d) => String(d.id) === String(id));
     if (!draft) return;
     state.selectedId = draft.id;
-    if (state.els.nameInput) state.els.nameInput.value = extractPersonName(draft.name || '');
+    const content = contentObject(draft.content);
+    if (state.els.nameInput) {
+      state.els.nameInput.value = content.personName || extractPersonName(draft.name || '');
+    }
+    if (state.els.genderInput) {
+      state.els.genderInput.value = typeof content.gender === 'string' ? content.gender : '';
+    }
     renderList();
     renderEditorState();
     setMsg('已加载存档，可修改人物名称后保存为新版本。', 'warn');
@@ -389,10 +409,17 @@
     if (state.els.savePreview) state.els.savePreview.textContent = buildSaveName() || '-';
   }
 
-  function openSaveModal(personName) {
+  function openSaveModal(personName, gender) {
     const version = getNextVersion(personName);
     const prefix = personName + '第' + version + '次修改';
-    state.pendingSave = { personName: personName, version: version, prefix: prefix };
+    const selected = state.drafts.find((draft) => String(draft.id) === String(state.selectedId));
+    state.pendingSave = {
+      personName: personName,
+      version: version,
+      prefix: prefix,
+      gender: gender,
+      baseContent: contentObject(selected && selected.content)
+    };
     if (state.els.savePrefix) state.els.savePrefix.textContent = prefix;
     if (state.els.saveSuffixInput) state.els.saveSuffixInput.value = '';
     if (state.els.saveMsg) { state.els.saveMsg.textContent = ''; state.els.saveMsg.className = 'cc-msg'; }
@@ -470,11 +497,27 @@
   }
 
   function getReviewPersonName(draft) {
-    const storedName = draft.content && typeof draft.content === 'object' &&
-      typeof draft.content.personName === 'string'
-      ? draft.content.personName.trim()
+    const content = contentObject(draft.content);
+    const storedName = typeof content.personName === 'string'
+      ? content.personName.trim()
       : '';
     return storedName || extractPersonName(draft.name || '');
+  }
+
+  function contentObject(content) {
+    let value = content;
+    if (typeof value === 'string') {
+      try { value = JSON.parse(value); } catch (_) { value = null; }
+    }
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.assign({}, value)
+      : {};
+  }
+
+  function contentWithGender(content, gender) {
+    const result = contentObject(content);
+    result.gender = typeof gender === 'string' ? gender : '';
+    return result;
   }
 
   function buildReviewName() {
@@ -485,6 +528,59 @@
 
   function updateReviewPreview() {
     if (state.els.reviewPreview) state.els.reviewPreview.textContent = buildReviewName() || '-';
+  }
+
+  async function exportReviewArchive(format) {
+    if (!state.pendingReview) return;
+    const pending = state.pendingReview;
+    const button = format === 'word'
+      ? state.els.reviewExportWordBtn
+      : state.els.reviewExportImageBtn;
+    const exporter = window.GreyArchiveExport;
+    const method = format === 'word' ? 'exportAsWord' : 'exportAsImage';
+    if (!exporter || typeof exporter[method] !== 'function') {
+      if (state.els.reviewMsg) {
+        state.els.reviewMsg.textContent = '本地导出模块未加载，请刷新页面后重试。';
+        state.els.reviewMsg.className = 'cc-msg is-error';
+      }
+      return;
+    }
+
+    const characterData = {
+      ownerId: pending.ownerId,
+      name: pending.personName,
+      displayName: buildReviewName(),
+      status: '待提交审核',
+      generatedAt: new Date().toISOString(),
+      content: pending.draft.content
+    };
+    const originalText = button ? button.textContent : '';
+    if (button) {
+      button.disabled = true;
+      button.textContent = '本地生成中…';
+    }
+    if (state.els.reviewMsg) {
+      state.els.reviewMsg.textContent = '正在查询历史版本并本地生成档案；文件不会上传。';
+      state.els.reviewMsg.className = 'cc-msg';
+    }
+    try {
+      await exporter[method](characterData);
+      if (state.els.reviewMsg) {
+        state.els.reviewMsg.textContent = '档案已在本地生成并下载，可继续提交审核。';
+        state.els.reviewMsg.className = 'cc-msg is-ok';
+      }
+    } catch (error) {
+      console.error('[CharacterManager] local archive export failed:', error);
+      if (state.els.reviewMsg) {
+        state.els.reviewMsg.textContent = '本地导出失败：' + (error && error.message ? error.message : '未知错误');
+        state.els.reviewMsg.className = 'cc-msg is-error';
+      }
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    }
   }
 
   function setReviewBusy(isBusy) {
@@ -557,7 +653,14 @@
       if (!Number.isFinite(count)) throw new Error('数据库未返回有效的提交次数。');
 
       const version = count + 1;
-      openReviewModal(personName, version, draft, ownerId);
+      const savedContent = contentObject(draft.content);
+      const currentGender = String(state.selectedId) === String(draft.id) && state.els.genderInput
+        ? state.els.genderInput.value.trim()
+        : (typeof savedContent.gender === 'string' ? savedContent.gender : '');
+      const reviewDraft = Object.assign({}, draft, {
+        content: contentWithGender(savedContent, currentGender)
+      });
+      openReviewModal(personName, version, reviewDraft, ownerId);
       return true;
     } catch (err) {
       console.error('[CharacterManager] submitForReview count error:', err);
@@ -600,7 +703,7 @@
           owner_id: pending.ownerId,
           name: finalName,
           status: 'pending',
-          content: pending.draft.content,
+          content: contentObject(pending.draft.content),
           updated_at: new Date().toISOString()
         }]);
       if (error) throw error;
@@ -626,18 +729,25 @@
 
   function setView(view) {
     const showSandbox = view === 'sandbox';
-    if (state.els.draftView) state.els.draftView.hidden = showSandbox;
+    const showArchive = view === 'archive';
+    const showDrafts = !showSandbox && !showArchive;
+    if (state.els.draftView) state.els.draftView.hidden = !showDrafts;
     if (state.els.sandboxView) state.els.sandboxView.hidden = !showSandbox;
-    if (state.els.draftTab) {
-      state.els.draftTab.classList.toggle('is-active', !showSandbox);
-      state.els.draftTab.setAttribute('aria-pressed', String(!showSandbox));
-    }
-    if (state.els.publicTab) {
-      state.els.publicTab.classList.toggle('is-active', showSandbox);
-      state.els.publicTab.setAttribute('aria-pressed', String(showSandbox));
-    }
+    if (state.els.archiveView) state.els.archiveView.hidden = !showArchive;
+    [
+      [state.els.draftTab, showDrafts],
+      [state.els.publicTab, showSandbox],
+      [state.els.archiveTab, showArchive]
+    ].forEach(([tab, active]) => {
+      if (!tab) return;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-pressed', String(active));
+    });
     if (showSandbox && window.SandboxManager && state.els.sandboxView) {
       window.SandboxManager.mount(state.els.sandboxView);
+    }
+    if (showArchive && window.ArchiveManager && state.els.archiveView) {
+      window.ArchiveManager.mount(state.els.archiveView);
     }
   }
 
@@ -658,7 +768,8 @@
     const personName = (state.els.nameInput && state.els.nameInput.value || '').trim();
     if (!personName) { setMsg('请输入人物名称。', 'error'); if (state.els.nameInput) state.els.nameInput.focus(); return; }
     if (personName.length > 40) { setMsg('人物名称不能超过 40 个字符。', 'error'); return; }
-    openSaveModal(personName);
+    const gender = (state.els.genderInput && state.els.genderInput.value || '').trim();
+    openSaveModal(personName, gender);
   }
 
   async function confirmSave() {
@@ -686,7 +797,11 @@
           owner_id: ownerId,
           name: saveName,
           status: 'draft',
-          content: { personName: state.pendingSave.personName, version: state.pendingSave.version },
+          content: Object.assign({}, state.pendingSave.baseContent, {
+            personName: state.pendingSave.personName,
+            version: state.pendingSave.version,
+            gender: state.pendingSave.gender
+          }),
           updated_at: now
         }])
         .select('id, owner_id, name, status, content, updated_at')
@@ -744,6 +859,7 @@
     });
     if (state.els.draftTab) state.els.draftTab.addEventListener('click', () => setView('drafts'));
     if (state.els.publicTab) state.els.publicTab.addEventListener('click', () => setView('sandbox'));
+    if (state.els.archiveTab) state.els.archiveTab.addEventListener('click', () => setView('archive'));
 
     if (state.els.saveSuffixInput) state.els.saveSuffixInput.addEventListener('input', updateSavePreview);
     if (state.els.saveConfirmBtn) state.els.saveConfirmBtn.addEventListener('click', confirmSave);
@@ -756,6 +872,12 @@
       });
     }
     if (state.els.reviewSuffixInput) state.els.reviewSuffixInput.addEventListener('input', updateReviewPreview);
+    if (state.els.reviewExportWordBtn) {
+      state.els.reviewExportWordBtn.addEventListener('click', () => exportReviewArchive('word'));
+    }
+    if (state.els.reviewExportImageBtn) {
+      state.els.reviewExportImageBtn.addEventListener('click', () => exportReviewArchive('image'));
+    }
     if (state.els.reviewConfirmBtn) state.els.reviewConfirmBtn.addEventListener('click', confirmSubmitForReview);
     if (state.els.reviewCancelBtn) state.els.reviewCancelBtn.addEventListener('click', () => closeReviewModal());
     if (state.els.reviewCloseBtn) state.els.reviewCloseBtn.addEventListener('click', () => closeReviewModal());
@@ -794,6 +916,7 @@
       state.drafts = [];
       state.selectedId = null;
       if (!keepUnsavedName && state.els.nameInput) state.els.nameInput.value = '';
+      if (!keepUnsavedName && state.els.genderInput) state.els.genderInput.value = '';
       renderOwnerMeta();
       renderEditorState();
       closeSaveModal();
@@ -834,6 +957,7 @@
     state.ownerId = '';
     state.selectedId = null;
     if (state.els.nameInput) state.els.nameInput.value = '';
+    if (state.els.genderInput) state.els.genderInput.value = '';
     renderOwnerMeta();
     renderEditorState();
     closeSaveModal();

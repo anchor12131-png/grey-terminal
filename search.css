@@ -27,7 +27,7 @@
 
 @media (max-width: 768px){
   .global-search{min-width:100px;max-width:240px}
-  .global-search input{height:32px;font-size:9px;padding:0 8px}
+  .global-search input{height:44px;min-height:44px;font-size:16px;padding:0 8px}
 }
 
 @media (max-width: 380px){
@@ -37,4 +37,8 @@
   .search-results{width:min(460px,calc(100vw - 20px));max-height:60vh}
   .search-result{padding:12px}
   .search-result-context{font-size:12px;line-height:1.55}
+}
+
+@media (max-width: 768px){
+  .global-search{flex:1 1 auto;min-width:56px;max-width:none}
 }

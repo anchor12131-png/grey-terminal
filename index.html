@@ -14,6 +14,8 @@
 <link rel="stylesheet" href="auth.css">
 <link rel="stylesheet" href="character-card.css">
 <link rel="stylesheet" href="sandbox.css">
+<link rel="stylesheet" href="archive.css">
+<link rel="stylesheet" href="export.css">
 </head>
 <body>
 
@@ -113,6 +115,26 @@
   <span class="tip-b"></span>
 </div>
 
+<div id="export-card-mock" class="export-card-mock" aria-hidden="true">
+  <div class="export-card-frame">
+    <header class="export-card-head">
+      <div>
+        <div class="export-card-org">灰星终端 · 角色档案</div>
+        <div class="export-card-en">GREYSTAR INTERNAL CHARACTER RECORD</div>
+      </div>
+      <span class="export-card-classification" data-export-status>待提交审核</span>
+    </header>
+    <div class="export-card-rule"></div>
+    <h1 class="export-card-name" data-export-name>未命名角色</h1>
+    <div class="export-card-generated">本地生成时间 · <time data-export-generated></time></div>
+    <section class="export-card-content">
+      <h2>角色资料</h2>
+      <div class="export-card-fields" data-export-fields></div>
+    </section>
+    <footer class="export-card-foot">GREYSTAR TERMINAL / LOCAL EXPORT · 不含服务器文件</footer>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════
      脚本
      ═══════════════════════════════════════════ -->
@@ -121,9 +143,12 @@
 <script src="directory.js"></script>
 <!-- Supabase + 灰星终端双轨制账号系统 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="supabase-client.js"></script>
+<script src="export.js"></script>
 <script src="auth.js"></script>
 <script src="sandbox.js"></script>
+<script src="archive.js"></script>
 <script src="character-card.js"></script>
 <script src="app.js"></script>
 
